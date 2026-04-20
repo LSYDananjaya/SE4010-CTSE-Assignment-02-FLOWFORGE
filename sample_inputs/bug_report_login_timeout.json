@@ -1,0 +1,10 @@
+{
+  "title": "Login request times out after 30 seconds",
+  "description": "Users report that valid login attempts stall and fail after roughly 30 seconds. Investigate likely backend causes and propose an implementation-ready fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep the solution local",
+    "Preserve the public login API"
+  ],
+  "reporter": "qa-team"
+}

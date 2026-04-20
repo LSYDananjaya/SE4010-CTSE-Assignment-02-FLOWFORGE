@@ -1,0 +1,10 @@
+{
+  "title": "Add CSV export for tasks",
+  "description": "Product management wants users to export tasks as CSV from the existing internal workflow tool. Produce an implementation-ready plan with risks and acceptance criteria.",
+  "request_type": "feature",
+  "constraints": [
+    "Keep outputs local",
+    "Prefer small incremental changes"
+  ],
+  "reporter": "product-team"
+}
