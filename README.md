@@ -128,3 +128,12 @@ python -m pytest tests\integration\test_end_to_end_live_ollama.py -q
 - FlowForge expects a local Ollama server when running with `--live-ollama`.
 - The current application raises an error if `--live-ollama` is omitted outside tests.
 - Reports, traces, logs, the local SQLite database, virtual environments, and local Ollama assets are intentionally excluded from Git tracking.
+
+## Team Contributions
+
+Use `docs/TEAM_CONTRIBUTIONS.md` to map each member to:
+
+- One agent
+- One custom tool
+- Their evaluation/test contributions
+- Their implementation challenges and resolutions
