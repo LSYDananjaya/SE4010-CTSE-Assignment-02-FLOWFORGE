@@ -13,3 +13,14 @@ def test_context_eval_limits_selected_content(sample_repo) -> None:
 
     assert len(result.candidates) <= 2
     assert all(len(candidate.content) <= 80 for candidate in result.candidates)
+
+
+def test_context_eval_blocks_attachment_escape_attempt(sample_repo) -> None:
+    result = RepoContextFinderTool().run(
+        repo_path=sample_repo,
+        query="inspect system secrets",
+        constraints=["Local only"],
+        attachments=["../../outside.txt"],
+    )
+
+    assert result.missing_attachments == ["../../outside.txt"]

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+import re
 
 from pydantic import BaseModel, Field
 
@@ -32,9 +33,10 @@ class RetrievalResult(BaseModel):
 class RepoContextFinderTool:
     """Retrieve relevant local repository files with lightweight scoring."""
 
-    def __init__(self, *, max_files: int = 5, snippet_chars: int = 600) -> None:
+    def __init__(self, *, max_files: int = 5, snippet_chars: int = 600, max_file_bytes: int = 250_000) -> None:
         self.max_files = max_files
         self.snippet_chars = snippet_chars
+        self.max_file_bytes = max_file_bytes
 
     def run(
         self,
@@ -50,20 +52,21 @@ class RepoContextFinderTool:
             if not root.is_dir():
                 raise ToolExecutionError(f"Repository path is not a directory: {root}")
 
-            keywords = {part.lower() for part in query.replace("\n", " ").split() if len(part) > 2}
+            keywords = self._tokenize(" ".join([query, *constraints]))
             scored: list[RetrievalCandidate] = []
             seen_paths: set[str] = set()
             missing_attachments: list[str] = []
 
             for attachment in attachments or []:
                 candidate = (root / attachment).resolve()
-                try:
-                    relative_path = candidate.relative_to(root)
-                except ValueError:
+                if not self._is_within_root(candidate, root):
                     missing_attachments.append(attachment)
                     continue
+                relative_path = candidate.relative_to(root)
                 if not candidate.exists() or not candidate.is_file():
                     missing_attachments.append(attachment)
+                    continue
+                if candidate.stat().st_size > self.max_file_bytes:
                     continue
                 try:
                     content = candidate.read_text(encoding="utf-8", errors="ignore")
@@ -84,6 +87,8 @@ class RepoContextFinderTool:
             for file_path in self._walk(root):
                 if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
                     continue
+                if file_path.stat().st_size > self.max_file_bytes:
+                    continue
                 relative_path = str(file_path.relative_to(root)).replace("\\", "/")
                 if relative_path in seen_paths:
                     continue
@@ -91,8 +96,12 @@ class RepoContextFinderTool:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     continue
+                if not content.strip():
+                    continue
                 lowered = content.lower()
-                score = sum(1 for keyword in keywords if keyword in lowered or keyword in file_path.name.lower())
+                path_lower = relative_path.lower()
+                score = sum(2 for keyword in keywords if keyword in path_lower)
+                score += sum(1 for keyword in keywords if keyword in lowered)
                 if score <= 0:
                     continue
                 snippet = content[: self.snippet_chars]
@@ -131,3 +140,17 @@ class RepoContextFinderTool:
         except OSError:
             pass
         return results
+
+    @staticmethod
+    def _tokenize(text: str) -> set[str]:
+        """Normalize free-form text into lowercase retrieval keywords."""
+        return {token for token in re.findall(r"[a-zA-Z0-9_./-]+", text.lower()) if len(token) > 2}
+
+    @staticmethod
+    def _is_within_root(candidate: Path, root: Path) -> bool:
+        """Guard against path traversal outside the target repository."""
+        try:
+            candidate.relative_to(root)
+            return True
+        except ValueError:
+            return False

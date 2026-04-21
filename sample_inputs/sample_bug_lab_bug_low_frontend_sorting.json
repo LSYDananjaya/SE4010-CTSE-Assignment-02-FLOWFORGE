@@ -1,0 +1,14 @@
+{
+  "title": "Recently updated tasks are sorted in the wrong order",
+  "description": "The task list currently shows older items first, which is a low-severity frontend bug but still confusing for reviewers. Inspect @client/src/components/FilterBar.tsx and @client/src/components/FeatureCard.tsx for sorting and severity-display polish issues.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep the change small",
+    "Avoid backend changes"
+  ],
+  "reporter": "product-ops",
+  "attachments": [
+    "client/src/components/FilterBar.tsx",
+    "client/src/components/FeatureCard.tsx"
+  ]
+}

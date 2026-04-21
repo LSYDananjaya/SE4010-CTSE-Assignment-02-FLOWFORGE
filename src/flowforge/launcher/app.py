@@ -5,11 +5,14 @@ from typing import Protocol
 
 from flowforge.launcher.input_controller import AttachmentResolver, LauncherInputController
 from flowforge.launcher.models import (
+    AgentProgressEntry,
     RequestDraft,
     SessionCommand,
     SessionEntry,
     SessionEntryKind,
     SessionMode,
+    SessionRunDetail,
+    SessionRunHistoryEntry,
     SessionState,
 )
 from flowforge.launcher.project_selector import ProjectSelector
@@ -166,11 +169,12 @@ class LauncherApp:
             self.state.status_text = "Workspace selection failed."
             return
         self.state.workspace_path = validation.path
+        self.state.workspace_markers = validation.markers[:3]
         self._remove_transcript_text("No workspace selected. Use /project to choose one.")
+        self._remove_transcript_text("Enter a workspace path.")
         self.state_machine.reset_idle()
         self.state = self.state_machine.state
-        marker_text = ", ".join(validation.markers) if validation.markers else "no project markers found"
-        self._append_entry(SessionEntryKind.STATUS, f"Workspace set to {validation.path} ({marker_text}).")
+        self._append_entry(SessionEntryKind.STATUS, "Workspace ready.")
         self.state.status_text = "Workspace ready."
 
     def _append_recent_runs(self) -> None:
@@ -194,11 +198,16 @@ class LauncherApp:
         resolved = self.attachment_resolver.resolve(state=parsed, workspace_root=Path(self.state.workspace_path))
         self.state.attachments = [item.path for item in resolved]
         request = self._build_request(submitted=submitted, attachments=self.state.attachments)
+        self._collapse_current_run()
+        self._prune_workflow_transcript()
 
         self.state_machine.handle_workflow_started()
         self.state = self.state_machine.state
+        self.state.agent_progress = self._initial_agent_progress()
+        self.state.current_run = None
+        self.state.workflow_active = True
+        self._set_agent_status("Intake Agent", "running", detail="Waiting for first trace event")
         self._append_entry(SessionEntryKind.STATUS, f"Running workflow for '{request.title}'...")
-        self._append_entry(SessionEntryKind.STATUS, "Waiting for Intake Agent...")
         self.state.status_text = "Waiting for Intake Agent."
 
         # Render with the status message before starting
@@ -245,6 +254,8 @@ class LauncherApp:
 
         if "error" in error_holder:
             self._append_entry(SessionEntryKind.ERROR, f"Workflow failed: {error_holder['error']}")
+            self._clear_running_agents()
+            self.state.workflow_active = False
             self.state_machine.reset_idle()
             self.state = self.state_machine.state
             self.state.status_text = "Workflow failed."
@@ -263,7 +274,10 @@ class LauncherApp:
         )
         self.persistence.record_recent_project(self.state.workspace_path)
 
+        self._set_current_run(result)
         self._append_result_summary(result)
+        self._clear_running_agents()
+        self.state.workflow_active = False
         self.state_machine.reset_idle()
         self.state = self.state_machine.state
         self.state.status_text = f"Completed {result.run_id}. Reports saved to data/reports."
@@ -279,26 +293,110 @@ class LauncherApp:
             latency_ms = float(event.get("latency_ms", 0.0))
             detail = str(event.get("detail", "")).strip()
             if status == "started":
-                self._remove_transcript_text(f"Waiting for {label}...")
-                self._append_entry(SessionEntryKind.STATUS, f"{label} started...")
+                self._set_agent_status(label, "running", detail="Processing request")
                 self.state.status_text = f"{label} running."
                 changed = True
             elif status == "success":
-                self._append_entry(SessionEntryKind.RESULT, f"{label} completed in {latency_ms:.0f}ms.")
+                self._set_agent_status(label, "completed", detail=f"Completed in {latency_ms:.0f}ms")
                 next_label = self._next_agent_label(node_name)
                 if next_label is not None:
-                    self._append_entry(SessionEntryKind.STATUS, f"Waiting for {next_label}...")
                     self.state.status_text = f"Waiting for {next_label}."
                 changed = True
             elif status == "error":
-                self._remove_transcript_text(f"Waiting for {label}...")
-                message = f"{label} failed"
-                if detail:
-                    message = f"{message}: {detail}"
-                self._append_entry(SessionEntryKind.ERROR, message)
-                self.state.status_text = f"{label} failed."
+                if "requires " in detail.lower():
+                    self._set_agent_status(label, "blocked", detail=detail)
+                else:
+                    self._set_agent_status(label, "failed", detail=detail or "Execution failed")
+                    self.state.status_text = f"{label} failed."
                 changed = True
         return changed
+
+    @staticmethod
+    def _initial_agent_progress() -> list[AgentProgressEntry]:
+        """Return the standard four-agent execution rail."""
+        return [
+            AgentProgressEntry(name="Intake Agent", status="pending"),
+            AgentProgressEntry(name="Context Agent", status="pending"),
+            AgentProgressEntry(name="Planning Agent", status="pending"),
+            AgentProgressEntry(name="QA Agent", status="pending"),
+        ]
+
+    def _set_agent_status(self, agent_name: str, status: str, *, detail: str = "") -> None:
+        """Update one agent in the live progress rail and keep only one running agent."""
+        updated: list[AgentProgressEntry] = []
+        for agent in self.state.agent_progress:
+            if agent.name == agent_name:
+                updated.append(agent.model_copy(update={"status": status, "detail": detail}))
+                continue
+            if status == "running" and agent.status == "running":
+                updated.append(agent.model_copy(update={"status": "pending", "detail": ""}))
+                continue
+            updated.append(agent)
+        self.state.agent_progress = updated
+
+    def _clear_running_agents(self) -> None:
+        """Normalize any remaining running agent markers after workflow completion."""
+        self.state.agent_progress = [
+            agent.model_copy(update={"status": "pending", "detail": ""}) if agent.status == "running" else agent
+            for agent in self.state.agent_progress
+        ]
+
+    def _collapse_current_run(self) -> None:
+        """Move the previously expanded run into compact history before a new run starts."""
+        if self.state.current_run is None:
+            return
+        detail = self.state.current_run
+        summary = detail.failure_cause or detail.title
+        self.state.run_history.insert(
+            0,
+            SessionRunHistoryEntry(
+                run_id=detail.run_id,
+                title=detail.title,
+                status=detail.status,
+                summary=summary[:80],
+            ),
+        )
+        self.state.run_history = self.state.run_history[:5]
+        self.state.current_run = None
+
+    def _set_current_run(self, result: WorkflowState) -> None:
+        """Store the latest run in structured form for the dedicated output section."""
+        trace_rows = self.trace_writer.read_trace_summary(Path(result.trace_file)) if result.trace_file else []
+        self.state.current_run = SessionRunDetail(
+            run_id=result.run_id,
+            title=result.request.title,
+            status=result.workflow_status,
+            trace_rows=trace_rows,
+            intake_result=result.intake_result,
+            context_bundle=result.context_bundle,
+            plan_result=result.plan_result,
+            qa_result=result.qa_result,
+            artifacts=result.artifacts,
+            failure_cause=self._workflow_failure_cause(result),
+        )
+
+    @staticmethod
+    def _workflow_failure_cause(result: WorkflowState) -> str:
+        """Return the most specific workflow failure cause available."""
+        for node_name in ("intake", "context", "planning", "qa"):
+            failure = str(result.trace_context.get(node_name, {}).get("failure_cause", "")).strip()
+            if failure:
+                return failure
+        return LauncherApp._primary_failure(result.errors) if result.errors else ""
+
+    def _prune_workflow_transcript(self) -> None:
+        """Remove older workflow output lines before a new run begins."""
+        retained: list[SessionEntry] = []
+        for entry in self.state.transcript:
+            text = entry.text
+            if text.startswith("Running workflow for '"):
+                continue
+            if text.startswith("Run run-"):
+                continue
+            if text.startswith("Failure Cause:"):
+                continue
+            retained.append(entry)
+        self.state.transcript = retained
 
     @staticmethod
     def _agent_label(node_name: str) -> str:
@@ -336,115 +434,10 @@ class LauncherApp:
         return self.request_selector.from_draft(draft, repo_path=self.state.workspace_path)
 
     def _append_result_summary(self, result: WorkflowState) -> None:
-        """Append detailed workflow results to the transcript."""
-        # ── Run header ──
+        """Append only high-signal workflow results to the transcript."""
         self._append_entry(SessionEntryKind.RESULT, f"Run {result.run_id} finished with status {result.workflow_status}.")
-        self._append_entry(SessionEntryKind.SYSTEM, "")
         if result.workflow_status == "failed" and result.errors:
             self._append_entry(SessionEntryKind.ERROR, f"Failure Cause: {self._primary_failure(result.errors)}")
-            self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── Intake Analysis ──
-        if result.intake_result:
-            intake = result.intake_result
-            self._append_entry(SessionEntryKind.SYSTEM, "╭─ Intake Analysis ──────────────────────────────────╮")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  Category:  {intake.category:<10}  Severity: {intake.severity:<10}│")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  Scope:     {intake.scope:<40}│")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  Summary:   {intake.summary[:40]:<40}│")
-            if intake.goals:
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  Goals:     {', '.join(intake.goals[:3])[:40]:<40}│")
-            if intake.missing_information:
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  Missing:   {', '.join(intake.missing_information[:2])[:40]:<40}│")
-            self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
-            self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── Context Snippets ──
-        if result.context_bundle:
-            ctx = result.context_bundle
-            self._append_entry(SessionEntryKind.SYSTEM, f"╭─ Context ({len(ctx.selected_snippets)} snippets from {ctx.files_considered} files) ──╮")
-            for snippet in ctx.selected_snippets[:6]:
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  📄 {snippet.path}")
-                self._append_entry(SessionEntryKind.SYSTEM, f"│     └─ {snippet.reason[:50]}")
-            self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
-            self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── Implementation Plan ──
-        if result.plan_result:
-            plan = result.plan_result
-            self._append_entry(SessionEntryKind.SYSTEM, f"╭─ Implementation Plan ({len(plan.tasks)} tasks) ─────────────╮")
-            if plan.summary:
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  {plan.summary[:52]}")
-            self._append_entry(SessionEntryKind.SYSTEM, "│")
-            for task in plan.tasks:
-                prio_icon = {"high": "🔴", "medium": "🟡", "low": "🟢"}.get(task.priority, "⚪")
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  {prio_icon} {task.task_id}: {task.title}")
-                self._append_entry(SessionEntryKind.SYSTEM, f"│     Priority: {task.priority}  │  Owner: {task.owner}")
-                if task.description:
-                    desc_preview = task.description[:60] + ("..." if len(task.description) > 60 else "")
-                    self._append_entry(SessionEntryKind.SYSTEM, f"│     {desc_preview}")
-                if task.acceptance_criteria:
-                    for ac in task.acceptance_criteria[:3]:
-                        self._append_entry(SessionEntryKind.SYSTEM, f"│     ✅ {ac[:55]}")
-                if task.risks:
-                    for risk in task.risks[:2]:
-                        self._append_entry(SessionEntryKind.SYSTEM, f"│     ⚠️  {risk[:55]}")
-                if task.dependencies:
-                    self._append_entry(SessionEntryKind.SYSTEM, f"│     Deps: {', '.join(task.dependencies)}")
-                self._append_entry(SessionEntryKind.SYSTEM, "│")
-
-            if plan.overall_risks:
-                self._append_entry(SessionEntryKind.SYSTEM, "│  Overall Risks:")
-                for risk in plan.overall_risks[:3]:
-                    self._append_entry(SessionEntryKind.SYSTEM, f"│     ⚠️  {risk[:55]}")
-            self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
-            self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── QA Verdict ──
-        if result.qa_result:
-            qa = result.qa_result
-            verdict = "✅ APPROVED" if qa.approved else "⚠️  NEEDS REVIEW"
-            self._append_entry(SessionEntryKind.SYSTEM, f"╭─ QA Verdict: {verdict} ─────────────────────────╮")
-            if qa.summary:
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  {qa.summary[:52]}")
-            if qa.findings:
-                for finding in qa.findings[:4]:
-                    self._append_entry(SessionEntryKind.SYSTEM, f"│  • {finding[:52]}")
-            if qa.rubric_checks:
-                self._append_entry(SessionEntryKind.SYSTEM, "│")
-                for check, passed in qa.rubric_checks.items():
-                    icon = "✓" if passed else "✗"
-                    self._append_entry(SessionEntryKind.SYSTEM, f"│  {icon} {check}")
-            self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
-            self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── Trace Timing Table ──
-        if result.trace_file:
-            trace_rows = self.trace_writer.read_trace_summary(Path(result.trace_file))
-            if trace_rows:
-                self._append_entry(SessionEntryKind.SYSTEM, "╭─ Trace ────────────────────────────────────────────╮")
-                self._append_entry(SessionEntryKind.SYSTEM, "│  Agent            Status       Latency             │")
-                self._append_entry(SessionEntryKind.SYSTEM, "│  ─────────────    ──────       ───────             │")
-                total_ms = 0.0
-                for row in trace_rows:
-                    s_icon = "✓" if row.status == "success" else "✗"
-                    latency_str = f"{row.latency_ms:>8.0f}ms"
-                    self._append_entry(
-                        SessionEntryKind.SYSTEM,
-                        f"│  {s_icon} {row.node_name:<15} {row.status:<12} {latency_str}  │",
-                    )
-                    total_ms += row.latency_ms
-                self._append_entry(SessionEntryKind.SYSTEM, "│  ─────────────    ──────       ───────             │")
-                self._append_entry(SessionEntryKind.SYSTEM, f"│  Total                         {total_ms:>8.0f}ms  │")
-                self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
-                self._append_entry(SessionEntryKind.SYSTEM, "")
-
-        # ── Artifact Paths ──
-        if result.artifacts:
-            self._append_entry(SessionEntryKind.SYSTEM, "╭─ Reports ──────────────────────────────────────────╮")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  📝 {result.artifacts.markdown_report}")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  📋 {result.artifacts.json_report}")
-            self._append_entry(SessionEntryKind.SYSTEM, f"│  📊 {result.artifacts.trace_file}")
-            self._append_entry(SessionEntryKind.SYSTEM, "╰────────────────────────────────────────────────────╯")
 
     def _append_entry(self, kind: SessionEntryKind, text: str) -> None:
         """Append one transcript line."""

@@ -192,3 +192,16 @@ def test_context_agent_falls_back_to_deterministic_context_when_llm_output_is_in
     assert updated.context_bundle.selected_snippets
     assert updated.context_bundle.selected_snippets[0].path == "src/components/AnimatedHeroIllustration.tsx"
     assert "fallback" in updated.context_bundle.summary.lower()
+
+
+def test_context_tool_rejects_attachment_path_traversal(sample_repo) -> None:
+    tool = RepoContextFinderTool()
+
+    result = tool.run(
+        repo_path=sample_repo,
+        query="inspect secrets file",
+        constraints=["Local only"],
+        attachments=["..\\..\\secret.txt"],
+    )
+
+    assert result.missing_attachments == ["..\\..\\secret.txt"]

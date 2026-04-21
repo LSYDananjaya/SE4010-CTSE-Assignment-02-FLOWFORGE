@@ -1,0 +1,14 @@
+{
+  "title": "Protected admin task route is broken and allows unauthorized access",
+  "description": "Security QA found that requests with any authorization header can pass the session check and reach admin task data. Review the crash-prone auth flow in @server/src/routes/auth.ts and @server/src/services/sessionService.ts, then propose a safe high-severity backend fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep the solution local",
+    "Do not redesign the entire auth stack"
+  ],
+  "reporter": "security-qa",
+  "attachments": [
+    "server/src/routes/auth.ts",
+    "server/src/services/sessionService.ts"
+  ]
+}

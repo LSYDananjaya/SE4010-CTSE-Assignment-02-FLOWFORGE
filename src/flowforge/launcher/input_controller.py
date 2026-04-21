@@ -51,14 +51,21 @@ class LauncherInputController:
         """Backward-compatible wrapper for earlier launcher tests."""
         return self.parse_session_input(text, cursor_position=cursor_position)
 
-    def apply_suggestion(self, state: SessionInputState, suggestion: SuggestionCandidate) -> SessionInputState:
+    def apply_suggestion(
+        self,
+        state: SessionInputState,
+        suggestion: SuggestionCandidate,
+        *,
+        finalize: bool = False,
+    ) -> SessionInputState:
         """Replace the active partial mention with the selected suggestion."""
         before_cursor = state.raw_text[: state.cursor_position]
         marker_index = before_cursor.rfind("@")
         if marker_index < 0:
             return state
-        updated_text = f"{state.raw_text[:marker_index]}@{suggestion.value}{state.raw_text[state.cursor_position:]}"
-        new_cursor = marker_index + len(suggestion.value) + 1
+        suffix = " " if finalize else ""
+        updated_text = f"{state.raw_text[:marker_index]}@{suggestion.value}{suffix}{state.raw_text[state.cursor_position:]}"
+        new_cursor = marker_index + len(suggestion.value) + 1 + len(suffix)
         return self.parse_session_input(updated_text, cursor_position=new_cursor)
 
 
