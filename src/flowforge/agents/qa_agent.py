@@ -71,6 +71,7 @@ class QAAgent:
             )
             state.workflow_status = "qa_completed"
         except FlowForgeError as exc:
+            # Only structured-generation failures are recoverable; tool and state errors should fail fast.
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("qa", {})["failure_cause"] = str(exc)
                 raise FlowForgeError("QA Agent failed.") from exc
