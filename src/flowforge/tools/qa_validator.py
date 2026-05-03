@@ -74,4 +74,5 @@ class QaValidatorTool:
             # Feature requests should show user/API impact and rollout readiness, not only code changes.
             if not any(keyword in combined_text for keyword in ("requirement", "design", "ux", "api", "accessibility", "rollout", "improve")):
                 findings.append("Feature plan should cover requirements, design/UX impact, or rollout considerations.")
+        # Findings remain plain strings because the QA agent owns final approval shaping.
         return findings
