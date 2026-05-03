@@ -26,3 +26,15 @@ Keeping repository retrieval useful while avoiding unsafe or excessive file acce
 ## Resolution
 
 The tool uses attachment-first retrieval, root-bound path checks, large-file skipping, keyword scoring, and bounded snippets.
+
+## Viva Demonstration Checklist
+
+- Show `context_agent.py` and explain why the agent runs after Intake.
+- Show `repo_context_finder.py` and explain attachment-first retrieval.
+- Demonstrate the path traversal check using the context evaluation test.
+- Explain why bounded snippets help local SLMs stay reliable.
+- Show that the Context Agent passes `ContextBundle` forward to Planning.
+
+## Key Defense Point
+
+This contribution proves that the MAS uses a real custom tool to interact with the local repository. The Context Agent does not depend only on LLM memory; it retrieves concrete files and snippets before reasoning.
