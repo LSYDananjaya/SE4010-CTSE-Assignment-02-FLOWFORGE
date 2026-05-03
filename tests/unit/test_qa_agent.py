@@ -154,6 +154,7 @@ def test_qa_agent_uses_feature_specific_rubric_language() -> None:
 
 
 def test_qa_validator_flags_missing_local_only_and_observability_evidence() -> None:
+    # Missing policy evidence should remain visible before the LLM review stage.
     findings = QaValidatorTool().run(
         intake=IntakeResult(
             category="feature",
