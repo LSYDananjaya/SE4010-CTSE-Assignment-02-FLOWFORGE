@@ -21,6 +21,7 @@ def test_parse_freeform_input_without_mentions() -> None:
     assert state.command is None
 
 
+
 def test_parse_session_command_and_argument() -> None:
     controller = LauncherInputController()
 
