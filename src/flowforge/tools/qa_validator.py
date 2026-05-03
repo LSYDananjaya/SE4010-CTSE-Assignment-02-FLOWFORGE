@@ -27,6 +27,7 @@ class QaValidatorTool:
         if not plan.tasks:
             findings.append("Plan does not contain any tasks.")
         if not plan.overall_risks:
+            # Overall risks summarize cross-task concerns that may not fit one planned task.
             findings.append("Plan does not contain any overall risks.")
         # Each planned task should carry enough evidence to be testable and risk-aware.
         for task in plan.tasks:
