@@ -6,6 +6,8 @@ from flowforge.models.state import WorkflowState
 from flowforge.tools.task_plan_builder import TaskPlanBuilderTool
 from flowforge.utils.errors import FlowForgeError
 
+# PlanningAgent: create an LLM prompt, request a structured plan,
+# normalize the plan via TaskPlanBuilderTool, and record concise traces.
 
 class PlanningAgent:
     """
@@ -22,17 +24,21 @@ class PlanningAgent:
 
     def run(self, state: WorkflowState) -> WorkflowState:
         """Run planning, normalize the task graph, and record trace context."""
+        # Ensure required upstream outputs exist before planning.
         if state.intake_result is None or state.context_bundle is None:
             raise FlowForgeError("Planning Agent requires intake and context outputs.")
 
         try:
-            # Keep snippet formatting explicit so the local model can separate path evidence from content.
+            # Build a compact concatenation of selected context snippets.
+            # The explicit "Path/Reason/Content" formatting helps local LLMs
+            # distinguish provenance from file contents.
             snippets = "\n\n".join(
                 f"Path: {snippet.path}\nReason: {snippet.reason}\nContent:\n{snippet.content}"
                 for snippet in state.context_bundle.selected_snippets
             )
             
-            # Trace summaries stay compact because report generation only needs the planning evidence shape.
+            # Record minimal trace metadata used by reporting and debugging.
+            # Keep summaries short to avoid bloating trace output.
             state.trace_context["planning"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, snippets={len(state.context_bundle.selected_snippets)}"
@@ -42,7 +48,9 @@ class PlanningAgent:
                 "fallback_used": False,
             }
 
-            # The prompt repeats the request category and expected emphasis so bug and feature plans stay distinct.
+            # Compose the LLM prompt including category-specific emphasis,
+            # request summary, goals, constraints, and the relevant snippets.
+            # This helps ensure the model outputs a PlanResult-shaped response.
             prompt = (
                 f"{PLANNING_PROMPT.strip()}\n\n"
                 f"Request category: {state.intake_result.category}\n"
@@ -53,7 +61,8 @@ class PlanningAgent:
                 f"Relevant snippets:\n{snippets}"
             )
 
-            # Structured generation should already match PlanResult, but the tool still enforces plan integrity.
+            # Ask the LLM for a structured PlanResult. If successful, run
+            # the TaskPlanBuilderTool to normalize and validate the produced plan.
             raw_plan = self.llm_client.generate_structured(
                 prompt=prompt,
                 schema=PlanResult,
@@ -61,18 +70,22 @@ class PlanningAgent:
             )
             state.plan_result = self.tool.run(raw_plan)
 
-            # Store short trace strings rather than full plan payloads to keep terminal and report output readable.
+            # Store short trace strings rather than full plan payloads to keep
+            # terminal and report output readable.
             state.trace_context["planning"]["tool_output_summary"] = (
                 f"tasks={len(state.plan_result.tasks)}, overall_risks={len(state.plan_result.overall_risks)}"
             )
             state.trace_context["planning"]["llm_output_summary"] = state.plan_result.summary[:120]
             state.workflow_status = "planning_completed"
         except FlowForgeError as exc:
+            # If the structured generation failed for a known Ollama issue,
+            # fall back to a deterministic plan; otherwise re-raise.
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("planning", {})["failure_cause"] = str(exc)
                 raise FlowForgeError(f"Planning Agent failed: {exc}") from exc
 
-            # Use a deterministic backup only for structured-generation failures; tool errors should surface.
+            # Build and normalize a deterministic fallback plan when structured
+            # generation is unavailable (keeps workflow resilient).
             fallback_plan = self._build_fallback_plan(state)
             state.plan_result = self.tool.run(fallback_plan)
             state.trace_context["planning"]["fallback_used"] = True
@@ -82,6 +95,8 @@ class PlanningAgent:
             state.trace_context["planning"]["llm_output_summary"] = state.plan_result.summary[:120]
             state.workflow_status = "planning_completed"
         except Exception as exc:  # noqa: BLE001
+            # Any unexpected exception is recorded in the trace and re-raised
+            # as a FlowForgeError to surface failures to the caller.
             state.trace_context.setdefault("planning", {})["failure_cause"] = str(exc)
             raise FlowForgeError(f"Planning Agent failed: {exc}") from exc
         return state
@@ -104,6 +119,7 @@ class PlanningAgent:
         if state.intake_result is None:
             raise FlowForgeError("Planning fallback requires intake output.")
 
+        # Preserve any constraints discovered in the context bundle or the request.
         constraints = state.context_bundle.constraints or state.request.constraints if state.context_bundle else state.request.constraints
 
         if state.intake_result.category == "bug":
@@ -186,6 +202,7 @@ class PlanningAgent:
             ]
 
         if constraints:
+            # Append a human-readable reminder about preserved constraints.
             overall_risks.append(f"Constraints to preserve during implementation: {', '.join(constraints)}.")
 
         return PlanResult(summary=summary, tasks=tasks, overall_risks=overall_risks)
