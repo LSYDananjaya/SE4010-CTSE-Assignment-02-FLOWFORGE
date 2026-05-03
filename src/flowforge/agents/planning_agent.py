@@ -8,7 +8,6 @@ from flowforge.utils.errors import FlowForgeError
 
 # PlanningAgent: create an LLM prompt, request a structured plan,
 # normalize the plan via TaskPlanBuilderTool, and record concise traces.
-
 class PlanningAgent:
     """
     Generate an implementation-ready task plan from intake and repository context.
@@ -17,7 +16,6 @@ class PlanningAgent:
     plan cleanup so the workflow can explain both the model output and the
     validation decisions in the trace report.
     """
-
     def __init__(self, *, llm_client: object, tool: TaskPlanBuilderTool) -> None:
         self.llm_client = llm_client
         self.tool = tool
