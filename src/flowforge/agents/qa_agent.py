@@ -100,6 +100,7 @@ class QAAgent:
     @staticmethod
     def _build_fallback_result(*, category: str, deterministic_findings: list[str]) -> QaResult:
         """Return a deterministic QA result when structured generation fails."""
+        # Fallback approval mirrors the deterministic validator outcome.
         approved = not deterministic_findings
         rubric_checks = {
             "local_only": approved,
