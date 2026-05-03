@@ -29,6 +29,7 @@ class QAAgent:
                 workflow_constraints=state.request.constraints,
                 observability_enabled=True,
             )
+            # Trace metadata keeps the QA stage auditable without storing the full prompt.
             state.trace_context["qa"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, tasks={len(state.plan_result.tasks)}, deterministic_findings={len(deterministic_findings)}"
