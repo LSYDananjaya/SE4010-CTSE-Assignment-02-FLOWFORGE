@@ -66,6 +66,7 @@ class QaValidatorTool:
             "observability",
         }.intersection(combined_tokens):
             findings.append("Plan should provide observability evidence such as tracing or logging coverage.")
+        # Bug requests need repair-oriented evidence beyond generic implementation tasks.
         if intake.category == "bug":
             if not any(keyword in combined_text for keyword in ("repro", "root cause", "fix", "regression", "validate")):
                 findings.append("Bug plan should cover reproduction, fix validation, or regression protection.")
