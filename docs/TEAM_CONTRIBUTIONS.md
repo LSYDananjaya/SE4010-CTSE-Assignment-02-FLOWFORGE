@@ -6,10 +6,10 @@ This project is implemented by one codebase, but for assignment compliance each 
 
 | Member | Agent Ownership | Tool Ownership | Evaluation Ownership | Primary Files |
 |---|---|---|---|---|
-| Member 1 (Name/ID) | Intake Agent | Intake Parser Tool | Intake evaluation tests | `src/flowforge/agents/intake_agent.py`, `src/flowforge/tools/intake_parser.py`, `tests/evals/test_intake_eval.py`, `tests/unit/test_intake_agent.py` |
-| Member 2 (Name/ID) | Context Agent | Repo Context Finder Tool | Context evaluation tests | `src/flowforge/agents/context_agent.py`, `src/flowforge/tools/repo_context_finder.py`, `tests/evals/test_context_eval.py`, `tests/unit/test_context_agent.py` |
-| Member 3 (Name/ID) | Planning Agent | Task Plan Builder Tool | Planning evaluation tests | `src/flowforge/agents/planning_agent.py`, `src/flowforge/tools/task_plan_builder.py`, `tests/evals/test_planning_eval.py`, `tests/unit/test_planning_agent.py` |
-| Member 4 (Name/ID) | QA Agent | QA Validator Tool | QA evaluation tests | `src/flowforge/agents/qa_agent.py`, `src/flowforge/tools/qa_validator.py`, `tests/evals/test_qa_eval.py`, `tests/unit/test_qa_agent.py` |
+| Pawara Sasmina | Context Agent | RepoContextFinderTool | Context retrieval evaluation and attachment handling | `src/flowforge/agents/context_agent.py`, `src/flowforge/tools/repo_context_finder.py`, `tests/evals/test_context_eval.py`, `tests/unit/test_context_agent.py` |
+| Yehara Dananjaya | QA Agent | QaValidatorTool | QA validation, tracing, and rubric alignment | `src/flowforge/agents/qa_agent.py`, `src/flowforge/tools/qa_validator.py`, `src/flowforge/services/tracing.py`, `tests/evals/test_qa_eval.py`, `tests/unit/test_qa_agent.py`, `tests/unit/test_tracing.py` |
+| Sankalani | Planning Agent | TaskPlanBuilderTool | Planning normalization and dependency validation | `src/flowforge/agents/planning_agent.py`, `src/flowforge/tools/task_plan_builder.py`, `tests/evals/test_planning_eval.py`, `tests/unit/test_planning_agent.py` |
+| Osanda | Intake Agent | IntakeParserTool | Intake evaluation and malformed input handling | `src/flowforge/agents/intake_agent.py`, `src/flowforge/tools/intake_parser.py`, `tests/evals/test_intake_eval.py`, `tests/unit/test_intake_agent.py` |
 
 ## Unified Group Components
 
@@ -40,6 +40,6 @@ Each member should provide proof for:
 
 ## Submission Notes
 
-- Fill actual student names and IDs in the table above.
+- Use `docs/BRANCH_AGENT_EVIDENCE.md` in each member branch as branch-specific proof.
 - Keep commit evidence by making at least one commit per member touching their owned files.
 - In the report, include this table and short per-member contribution paragraphs.
