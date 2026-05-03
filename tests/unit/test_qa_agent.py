@@ -82,6 +82,7 @@ def test_qa_agent_flags_and_approves_complete_plan() -> None:
 
 
 def test_qa_agent_uses_feature_specific_rubric_language() -> None:
+    # Feature requests should receive feature-oriented rubric wording in the LLM prompt.
     request = UserRequest(
         title="Category picker improvements",
         description="Suggest improvements for CategoryPicker.",
