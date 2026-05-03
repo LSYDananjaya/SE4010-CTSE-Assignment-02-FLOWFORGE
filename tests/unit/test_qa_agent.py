@@ -247,6 +247,7 @@ def test_qa_validator_accepts_natural_local_constraint_language() -> None:
 
 
 def test_qa_agent_falls_back_to_deterministic_result_when_llm_output_is_invalid() -> None:
+    # Invalid structured output should fall back to deterministic findings instead of failing the run.
     request = UserRequest(
         title="CSV export feature",
         description="Add CSV export with local-only constraints.",
