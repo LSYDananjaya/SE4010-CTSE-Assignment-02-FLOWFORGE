@@ -19,6 +19,7 @@ class QaValidatorTool:
     ) -> list[str]:
         """Return rule-based findings for missing or inconsistent details."""
         findings: list[str] = []
+        # Core workflow artifacts must be present before deeper quality checks are useful.
         if not intake.goals:
             findings.append("Intake result is missing explicit goals.")
         if not context.selected_snippets:
