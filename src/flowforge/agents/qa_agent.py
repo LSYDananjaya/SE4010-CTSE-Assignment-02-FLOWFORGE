@@ -49,6 +49,7 @@ class QAAgent:
                 f"Task count: {len(state.plan_result.tasks)}\n"
                 f"Overall risks: {state.plan_result.overall_risks}"
             )
+            # Structured output lets downstream workflow state consume QA decisions consistently.
             result = self.llm_client.generate_structured(
                 prompt=prompt,
                 schema=QaResult,
