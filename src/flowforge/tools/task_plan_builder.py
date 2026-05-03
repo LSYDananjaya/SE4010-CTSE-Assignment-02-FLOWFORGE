@@ -16,6 +16,7 @@ class TaskPlanBuilderTool:
             missing = [dependency for dependency in task.dependencies if dependency not in task_ids]
             if missing:
                 raise ToolExecutionError(f"Task {task.task_id} references unknown dependencies: {missing}")
+            # Preserve first-seen order while removing duplicates from model-generated lists.
             task.dependencies = list(dict.fromkeys(task.dependencies))
             task.acceptance_criteria = list(dict.fromkeys(task.acceptance_criteria))
             if not task.risks:
@@ -23,6 +24,7 @@ class TaskPlanBuilderTool:
             task.risks = list(dict.fromkeys(task.risks))
 
         self._ensure_acyclic(plan)
+        # Stable ordering makes generated plans easier to compare in tests and reports.
         plan.tasks.sort(key=lambda task: (len(task.dependencies), task.task_id))
         if not plan.overall_risks:
             plan.overall_risks = [risk for task in plan.tasks for risk in task.risks]

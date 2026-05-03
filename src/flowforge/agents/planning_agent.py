@@ -8,22 +8,24 @@ from flowforge.utils.errors import FlowForgeError
 
 
 class PlanningAgent:
-    """Generate an implementation-ready task plan."""
+    """Generate an implementation-ready task plan from intake and repository context."""
 
     def __init__(self, *, llm_client: object, tool: TaskPlanBuilderTool) -> None:
         self.llm_client = llm_client
         self.tool = tool
 
     def run(self, state: WorkflowState) -> WorkflowState:
-        """Run planning and normalize the resulting task graph."""
+        """Run planning, normalize the task graph, and record trace context."""
         if state.intake_result is None or state.context_bundle is None:
             raise FlowForgeError("Planning Agent requires intake and context outputs.")
 
         try:
+            # Keep snippet formatting explicit so the local model can separate path evidence from content.
             snippets = "\n\n".join(
                 f"Path: {snippet.path}\nReason: {snippet.reason}\nContent:\n{snippet.content}"
                 for snippet in state.context_bundle.selected_snippets
             )
+            # Trace summaries stay compact because report generation only needs the planning evidence shape.
             state.trace_context["planning"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, snippets={len(state.context_bundle.selected_snippets)}"
@@ -56,6 +58,7 @@ class PlanningAgent:
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("planning", {})["failure_cause"] = str(exc)
                 raise FlowForgeError(f"Planning Agent failed: {exc}") from exc
+            # Use a deterministic backup only for structured-generation failures; tool errors should surface.
             fallback_plan = self._build_fallback_plan(state)
             state.plan_result = self.tool.run(fallback_plan)
             state.trace_context["planning"]["fallback_used"] = True
