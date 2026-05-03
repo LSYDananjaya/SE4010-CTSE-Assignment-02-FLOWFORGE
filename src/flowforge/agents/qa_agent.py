@@ -16,6 +16,7 @@ class QAAgent:
 
     def run(self, state: WorkflowState) -> WorkflowState:
         """Run the QA validation stage."""
+        # QA depends on the prior agents so validation can compare intent, context, and plan.
         if state.intake_result is None or state.context_bundle is None or state.plan_result is None:
             raise FlowForgeError("QA Agent requires intake, context, and planning outputs.")
 
