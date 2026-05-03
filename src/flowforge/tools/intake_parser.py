@@ -23,12 +23,16 @@ class IntakeParserTool:
         try:
             title = " ".join(request.title.split())
             description = " ".join(request.description.split())
-            constraints = [constraint.strip() for constraint in request.constraints if constraint.strip()]
+            if not title or not description:
+                raise ToolExecutionError("Request is missing meaningful title or description after normalization.")
+            constraints = list(dict.fromkeys(constraint.strip() for constraint in request.constraints if constraint.strip()))
             return ParsedRequest(
                 title=title,
                 description=description,
-                request_type=request.request_type,
+                request_type=request.request_type.lower(),
                 constraints=constraints,
             )
         except Exception as exc:  # noqa: BLE001
+            if isinstance(exc, ToolExecutionError):
+                raise
             raise ToolExecutionError("Intake parser failed.") from exc

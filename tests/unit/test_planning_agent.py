@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 from flowforge.agents.planning_agent import PlanningAgent
-from flowforge.models.outputs import ContextBundle, FileSnippet, IntakeResult, PlanResult
+from flowforge.models.outputs import ContextBundle, FileSnippet, IntakeResult, PlanResult, PlannedTask
 from flowforge.models.requests import UserRequest
 from flowforge.models.state import WorkflowState
 from flowforge.tools.task_plan_builder import TaskPlanBuilderTool
+from flowforge.utils.errors import FlowForgeError
+from flowforge.utils.errors import ToolExecutionError
 
 
 def test_planning_agent_creates_dependency_aware_plan() -> None:
@@ -137,3 +139,105 @@ def test_planning_agent_includes_bug_specific_prompt_context() -> None:
     assert updated.plan_result.tasks[0].title == "Reproduce timeout"
     assert "Request category: bug" in llm.calls[0]["prompt"]
     assert "Expected planning emphasis: reproduction, root cause" in llm.calls[0]["prompt"]
+
+
+def test_task_plan_builder_rejects_dependency_cycles() -> None:
+    tool = TaskPlanBuilderTool()
+    cyclic_plan = PlanResult(
+        summary="Plan with a cycle.",
+        tasks=[
+            PlannedTask(
+                task_id="T1",
+                title="First",
+                description="First task",
+                priority="high",
+                dependencies=["T2"],
+                acceptance_criteria=["T1 done"],
+                risks=["Regression"],
+                owner="Student 3",
+            ),
+            PlannedTask(
+                task_id="T2",
+                title="Second",
+                description="Second task",
+                priority="medium",
+                dependencies=["T1"],
+                acceptance_criteria=["T2 done"],
+                risks=["Order issue"],
+                owner="Student 3",
+            ),
+        ],
+        overall_risks=["Dependency cycle"],
+    )
+
+    with __import__("pytest").raises(ToolExecutionError, match="dependency cycle"):
+        tool.run(cyclic_plan)
+
+
+def test_task_plan_builder_backfills_missing_risks() -> None:
+    tool = TaskPlanBuilderTool()
+    plan = PlanResult(
+        summary="Plan without explicit risks.",
+        tasks=[
+            PlannedTask(
+                task_id="T1",
+                title="Implement export",
+                description="Add CSV export.",
+                priority="high",
+                dependencies=[],
+                acceptance_criteria=["CSV export works"],
+                risks=[],
+                owner="Student 3",
+            )
+        ],
+        overall_risks=[],
+    )
+
+    normalized = tool.run(plan)
+
+    assert normalized.tasks[0].risks
+    assert normalized.overall_risks
+
+
+def test_planning_agent_falls_back_to_deterministic_plan_when_llm_output_is_invalid() -> None:
+    request = UserRequest(
+        title="Login timeout bug",
+        description="Fix login timeout without changing the public API.",
+        request_type="bug",
+        constraints=["Local only", "Preserve login API"],
+        reporter="qa",
+        repo_path="C:/repo",
+    )
+    state = WorkflowState.initial(request=request)
+    state.intake_result = IntakeResult(
+        category="bug",
+        severity="high",
+        scope="backend",
+        goals=["Reproduce the timeout", "Fix the timeout", "Prevent regression"],
+        missing_information=[],
+        summary="Fix login timeout.",
+    )
+    state.context_bundle = ContextBundle(
+        files_considered=1,
+        selected_snippets=[
+            FileSnippet(
+                path="src/auth_service.py",
+                language="python",
+                reason="Relevant login path",
+                content="def login(username: str, password: str) -> bool:\n    return True",
+            )
+        ],
+        constraints=["Local only"],
+        summary="Auth context found.",
+    )
+
+    class InvalidPlanningLlm:
+        def generate_structured(self, **kwargs):  # type: ignore[no-untyped-def]
+            raise FlowForgeError("Ollama structured generation failed. metadata={'agent': 'planning'} raw_preview=invalid")
+
+    updated = PlanningAgent(llm_client=InvalidPlanningLlm(), tool=TaskPlanBuilderTool()).run(state)
+
+    assert updated.plan_result is not None
+    assert updated.plan_result.tasks
+    assert updated.trace_context["planning"]["fallback_used"] is True
+    assert any("repro" in task.title.lower() or "validate" in task.title.lower() for task in updated.plan_result.tasks)

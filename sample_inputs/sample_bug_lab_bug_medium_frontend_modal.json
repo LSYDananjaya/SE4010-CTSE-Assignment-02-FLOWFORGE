@@ -1,0 +1,13 @@
+{
+  "title": "Edit task modal accepts invalid input and has keyboard accessibility gaps",
+  "description": "Users can save blank task titles, invalid due dates, and get stuck in the modal without proper keyboard handling. Analyze @client/src/components/EditTaskModal.tsx and propose a medium-severity frontend fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep the UI local-only",
+    "Prefer incremental accessibility fixes"
+  ],
+  "reporter": "ux-qa",
+  "attachments": [
+    "client/src/components/EditTaskModal.tsx"
+  ]
+}

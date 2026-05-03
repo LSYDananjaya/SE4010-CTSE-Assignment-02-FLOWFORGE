@@ -27,7 +27,7 @@ class FlowForgeTui:
         self.console.clear()
 
         # Show welcome banner with workspace info
-        self.console.print(render_banner(workspace=state.workspace_path))
+        self.console.print(render_banner())
 
         # Context rows for the renderer
         context_rows = [
@@ -39,6 +39,12 @@ class FlowForgeTui:
         layout = self.renderer.compose_session_screen(
             transcript_entries=state.transcript,
             context_rows=context_rows,
+            agent_progress=state.agent_progress,
+            workspace_path=state.workspace_path,
+            workspace_markers=state.workspace_markers,
+            current_run=state.current_run,
+            run_history=state.run_history,
+            workflow_active=state.workflow_active,
         )
         self.console.print(layout)
 

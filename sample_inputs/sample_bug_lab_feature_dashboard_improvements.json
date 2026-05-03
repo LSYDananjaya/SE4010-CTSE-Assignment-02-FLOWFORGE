@@ -1,0 +1,13 @@
+{
+  "title": "What improvements can be done on the task dashboard feature card",
+  "description": "Review the current feature card implementation and suggest practical frontend improvements for readability, severity signaling, and maintainability.",
+  "request_type": "feature",
+  "constraints": [
+    "Keep suggestions local",
+    "Prefer small incremental improvements"
+  ],
+  "reporter": "frontend-team",
+  "attachments": [
+    "client/src/components/FeatureCard.tsx"
+  ]
+}

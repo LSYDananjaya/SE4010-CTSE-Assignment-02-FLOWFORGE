@@ -134,3 +134,28 @@ def test_agent_node_emits_detailed_error_trace_event(sample_repo, tmp_path: Path
     assert updated.errors[0] == "Task T2 references unknown dependencies: ['T9']"
     assert updated.errors[1] == "Planning Agent failed."
     assert [row.status for row in trace_rows] == ["error"]
+
+
+def test_agent_node_prefers_trace_failure_cause_when_runner_wraps_error(sample_repo, tmp_path: Path) -> None:
+    request = UserRequest(
+        title="Feature review",
+        description="Review FeatureCard improvements.",
+        request_type="feature",
+        constraints=[],
+        reporter="qa",
+        repo_path=str(sample_repo),
+    )
+    writer = JsonTraceWriter(base_dir=tmp_path / "data")
+    workflow = WorkflowState.initial(request=request)
+    workflow.trace_context["intake"] = {
+        "failure_cause": "Ollama structured generation failed: severity='unknown'",
+    }
+
+    def runner(state: WorkflowState) -> WorkflowState:
+        raise ValueError("Intake Agent failed.")
+
+    node = build_agent_node(name="intake", runner=runner, trace_writer=writer)
+
+    updated = node({"workflow": workflow})["workflow"]
+
+    assert updated.errors[0] == "Ollama structured generation failed: severity='unknown'"

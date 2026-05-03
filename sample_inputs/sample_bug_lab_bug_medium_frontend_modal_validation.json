@@ -1,0 +1,13 @@
+{
+  "title": "Edit task modal allows invalid data and is difficult to use with keyboard only",
+  "description": "The edit modal accepts empty titles and invalid dates, and keyboard users cannot operate it safely. Produce an implementation-ready bug fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep changes incremental",
+    "Do not add third-party UI libraries"
+  ],
+  "reporter": "ux-qa",
+  "attachments": [
+    "client/src/components/EditTaskModal.tsx"
+  ]
+}
