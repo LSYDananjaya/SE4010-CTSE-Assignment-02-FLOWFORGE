@@ -92,6 +92,7 @@ class QAAgent:
 
     @staticmethod
     def _qa_emphasis(category: str) -> str:
+        # Bug and feature plans need different review language in the final QA prompt.
         if category == "bug":
             return "reproduction coverage, fix validation, regression protection, and operational risk"
         return "requirements coverage, UX/API impact, edge cases, rollout readiness, and test coverage"
