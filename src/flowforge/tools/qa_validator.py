@@ -57,6 +57,7 @@ class QaValidatorTool:
             or "local" in combined_tokens
         ):
             findings.append("Plan should explicitly confirm local-only execution constraints.")
+        # When tracing is not guaranteed by the caller, the plan must provide its own evidence.
         if not observability_enabled and not {
             "trace",
             "tracing",
