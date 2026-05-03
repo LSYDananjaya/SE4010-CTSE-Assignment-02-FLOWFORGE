@@ -5,6 +5,7 @@ from flowforge.models.outputs import ContextBundle, FileSnippet, IntakeResult, P
 from flowforge.models.requests import UserRequest
 from flowforge.models.state import WorkflowState
 from flowforge.tools.qa_validator import QaValidatorTool
+from flowforge.utils.errors import FlowForgeError
 
 
 def test_qa_agent_flags_and_approves_complete_plan() -> None:
@@ -148,3 +149,222 @@ def test_qa_agent_uses_feature_specific_rubric_language() -> None:
     assert updated.qa_result.approved is True
     assert "Request category: feature" in llm.calls[0]["prompt"]
     assert "Expected QA emphasis: requirements coverage, UX/API impact" in llm.calls[0]["prompt"]
+
+
+def test_qa_validator_flags_missing_local_only_and_observability_evidence() -> None:
+    findings = QaValidatorTool().run(
+        intake=IntakeResult(
+            category="feature",
+            severity="medium",
+            scope="backend",
+            goals=["Add CSV export"],
+            missing_information=[],
+            summary="Add CSV export.",
+        ),
+        context=ContextBundle(
+            files_considered=1,
+            selected_snippets=[
+                FileSnippet(
+                    path="src/export_tasks.py",
+                    language="python",
+                    reason="Export entrypoint",
+                    content="def export_tasks(format_name: str) -> str:\n    return format_name",
+                )
+            ],
+            constraints=[],
+            summary="Context found without deployment or audit details.",
+        ),
+        plan=PlanResult(
+            summary="Implement CSV export with UX improvements.",
+            tasks=[
+                PlannedTask(
+                    task_id="T1",
+                    title="Implement export logic",
+                    description="Add CSV export support.",
+                    priority="high",
+                    dependencies=[],
+                    acceptance_criteria=["CSV export returns the expected file content"],
+                    risks=["Formatting mismatch"],
+                    owner="Student 4",
+                )
+            ],
+            overall_risks=["Formatting mismatch"],
+        ),
+    )
+
+    assert any("local-only" in finding.lower() for finding in findings)
+    assert any("observability" in finding.lower() for finding in findings)
+
+
+def test_qa_validator_accepts_natural_local_constraint_language() -> None:
+    findings = QaValidatorTool().run(
+        intake=IntakeResult(
+            category="feature",
+            severity="medium",
+            scope="backend",
+            goals=["Add CSV export"],
+            missing_information=[],
+            summary="Add CSV export.",
+        ),
+        context=ContextBundle(
+            files_considered=1,
+            selected_snippets=[
+                FileSnippet(
+                    path="src/export_tasks.py",
+                    language="python",
+                    reason="Export entrypoint",
+                    content="def export_tasks() -> str:\n    return 'csv'",
+                )
+            ],
+            constraints=[],
+            summary="Trace logging is enabled for the workflow.",
+        ),
+        plan=PlanResult(
+            summary="Implement CSV export with requirements coverage and logging.",
+            tasks=[
+                PlannedTask(
+                    task_id="T1",
+                    title="Implement CSV export",
+                    description="Add export support and validate the API requirement.",
+                    priority="high",
+                    dependencies=[],
+                    acceptance_criteria=["CSV export works"],
+                    risks=["Formatting mismatch"],
+                    owner="Student 4",
+                )
+            ],
+            overall_risks=["Formatting mismatch"],
+        ),
+        workflow_constraints=["Keep outputs local", "Prefer incremental changes"],
+        observability_enabled=False,
+    )
+
+    assert not any("local-only" in finding.lower() for finding in findings)
+
+
+def test_qa_agent_falls_back_to_deterministic_result_when_llm_output_is_invalid() -> None:
+    request = UserRequest(
+        title="CSV export feature",
+        description="Add CSV export with local-only constraints.",
+        request_type="feature",
+        constraints=["Local only"],
+        reporter="pm",
+        repo_path="C:/repo",
+    )
+    state = WorkflowState.initial(request=request)
+    state.intake_result = IntakeResult(
+        category="feature",
+        severity="medium",
+        scope="backend",
+        goals=["Add CSV export"],
+        missing_information=[],
+        summary="Add CSV export.",
+    )
+    state.context_bundle = ContextBundle(
+        files_considered=1,
+        selected_snippets=[
+            FileSnippet(
+                path="src/export_tasks.py",
+                language="python",
+                reason="Export entrypoint",
+                content="def export_tasks() -> str:\n    return 'csv'",
+            )
+        ],
+        constraints=["Local only"],
+        summary="Trace logging is already enabled for the workflow.",
+    )
+    state.plan_result = PlanResult(
+        summary="Implement CSV export with requirements coverage, API validation, and trace logging.",
+        tasks=[
+            PlannedTask(
+                task_id="T1",
+                title="Implement CSV export",
+                description="Add export support, document API behavior, and validate the main requirement locally.",
+                priority="high",
+                dependencies=[],
+                acceptance_criteria=["CSV export works locally"],
+                risks=["Formatting mismatch"],
+                owner="Student 4",
+            )
+        ],
+        overall_risks=["Formatting mismatch"],
+    )
+
+    class InvalidQaLlm:
+        def generate_structured(self, **kwargs):  # type: ignore[no-untyped-def]
+            raise FlowForgeError("Ollama structured generation failed. metadata={'agent': 'qa'} raw_preview=invalid")
+
+    updated = QAAgent(llm_client=InvalidQaLlm(), tool=QaValidatorTool()).run(state)
+
+    assert updated.qa_result is not None
+    assert updated.qa_result.approved is True
+    assert updated.trace_context["qa"]["fallback_used"] is True
+
+
+def test_qa_agent_filters_plan_risks_out_of_llm_findings() -> None:
+    request = UserRequest(
+        title="Login timeout bug",
+        description="Fix the login timeout while keeping the API stable.",
+        request_type="bug",
+        constraints=["Local only"],
+        reporter="qa",
+        repo_path="C:/repo",
+    )
+    state = WorkflowState.initial(request=request)
+    state.intake_result = IntakeResult(
+        category="bug",
+        severity="high",
+        scope="backend",
+        goals=["Fix timeout"],
+        missing_information=[],
+        summary="Fix timeout.",
+    )
+    state.context_bundle = ContextBundle(
+        files_considered=1,
+        selected_snippets=[
+            FileSnippet(
+                path="src/auth_service.py",
+                language="python",
+                reason="Relevant login path",
+                content="def login(username: str, password: str) -> bool:\n    return True",
+            )
+        ],
+        constraints=["Local only"],
+        summary="Trace logging is enabled for the workflow.",
+    )
+    state.plan_result = PlanResult(
+        summary="Implement the fix with validation and trace logging.",
+        tasks=[
+            PlannedTask(
+                task_id="T1",
+                title="Fix timeout",
+                description="Update the timeout handling and validate the fix.",
+                priority="high",
+                dependencies=[],
+                acceptance_criteria=["Timeout fix works locally"],
+                risks=["The fix may introduce authentication regressions if request handling changes."],
+                owner="Student 4",
+            )
+        ],
+        overall_risks=["The fix may introduce authentication regressions if request handling changes."],
+    )
+    llm = __import__("tests.conftest", fromlist=["StubLLM"]).StubLLM(
+        [
+            {
+                "approved": False,
+                "findings": ["The fix may introduce authentication regressions if request handling changes."],
+                "rubric_checks": {
+                    "local_only": True,
+                    "observability": True,
+                    "tests_present": True,
+                },
+                "summary": "Needs review.",
+            }
+        ]
+    )
+
+    updated = QAAgent(llm_client=llm, tool=QaValidatorTool()).run(state)
+
+    assert updated.qa_result is not None
+    assert updated.qa_result.findings == []
+    assert updated.qa_result.approved is True

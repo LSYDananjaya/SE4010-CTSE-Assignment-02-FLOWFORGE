@@ -47,3 +47,49 @@ def test_qa_eval_flags_missing_acceptance_criteria() -> None:
     )
 
     assert any("acceptance criteria" in finding.lower() for finding in findings)
+
+
+def test_qa_eval_flags_missing_observability_and_local_only_controls() -> None:
+    tool = QaValidatorTool()
+    findings = tool.run(
+        intake=IntakeResult(
+            category="feature",
+            severity="medium",
+            scope="backend",
+            goals=["Add CSV export"],
+            missing_information=[],
+            summary="Add CSV export.",
+        ),
+        context=ContextBundle(
+            files_considered=1,
+            selected_snippets=[
+                FileSnippet(
+                    path="src/export_tasks.py",
+                    language="python",
+                    reason="Relevant export code",
+                    content="def export_tasks() -> str:\n    return 'csv'",
+                )
+            ],
+            constraints=[],
+            summary="Context found.",
+        ),
+        plan=PlanResult(
+            summary="Implement CSV export with accessibility improvements.",
+            tasks=[
+                PlannedTask(
+                    task_id="T1",
+                    title="Implement CSV export",
+                    description="Add export support with validation.",
+                    priority="high",
+                    dependencies=[],
+                    acceptance_criteria=["CSV export works locally"],
+                    risks=["Formatting mismatch"],
+                    owner="Student 4",
+                )
+            ],
+            overall_risks=["Formatting mismatch"],
+        ),
+    )
+
+    assert any("observability" in finding.lower() for finding in findings)
+    assert any("local-only" in finding.lower() for finding in findings)

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Literal, TypedDict
+from typing import Any, Literal, TypedDict
 
 from pydantic import BaseModel, Field
 
@@ -31,6 +31,7 @@ class WorkflowState(BaseModel):
     qa_result: QaResult | None = None
     artifacts: ArtifactPaths | None = None
     trace_file: str = ""
+    trace_context: dict[str, dict[str, Any]] = Field(default_factory=dict)
     workflow_status: WorkflowStatus = "initialized"
     errors: list[str] = Field(default_factory=list)
 

@@ -5,6 +5,8 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from flowforge.models.outputs import ArtifactPaths, ContextBundle, IntakeResult, PlanResult, QaResult
+
 
 class SessionMode(StrEnum):
     """High-level modes for the interactive session UI."""
@@ -120,6 +122,58 @@ class SuggestionCandidate(BaseModel):
 
     display: str
     value: str
+    meta: str = ""
+
+
+class SuggestionMatchSet(BaseModel):
+    """Full suggestion result including visible items and total match count."""
+
+    candidates: list[SuggestionCandidate] = Field(default_factory=list)
+    total_count: int = 0
+
+
+class PromptSuggestionState(BaseModel):
+    """Transient @-suggestion state for the interactive prompt."""
+
+    active: bool = False
+    mode: Literal["file", "command", "none"] = "none"
+    query: str = ""
+    candidates: list[SuggestionCandidate] = Field(default_factory=list)
+    total_count: int = 0
+    selected_index: int = 0
+    scroll_offset: int = 0
+
+
+class AgentProgressEntry(BaseModel):
+    """Live launcher progress state for a single agent."""
+
+    name: str
+    status: Literal["pending", "running", "completed", "failed", "blocked"] = "pending"
+    detail: str = ""
+
+
+class SessionRunHistoryEntry(BaseModel):
+    """Collapsed summary of a previously completed workflow run."""
+
+    run_id: str
+    title: str
+    status: str
+    summary: str = ""
+
+
+class SessionRunDetail(BaseModel):
+    """Latest workflow result displayed in the dedicated output section."""
+
+    run_id: str
+    title: str
+    status: str
+    trace_rows: list["TraceSummaryRow"] = Field(default_factory=list)
+    intake_result: "IntakeResult | None" = None
+    context_bundle: "ContextBundle | None" = None
+    plan_result: "PlanResult | None" = None
+    qa_result: "QaResult | None" = None
+    artifacts: "ArtifactPaths | None" = None
+    failure_cause: str = ""
 
 
 class SessionInputState(BaseModel):
@@ -158,7 +212,12 @@ class SessionState(BaseModel):
     mode: SessionMode = SessionMode.IDLE
     transcript: list[SessionEntry] = Field(default_factory=list)
     workspace_path: str | None = None
+    workspace_markers: list[str] = Field(default_factory=list)
     attachments: list[str] = Field(default_factory=list)
+    agent_progress: list[AgentProgressEntry] = Field(default_factory=list)
+    current_run: SessionRunDetail | None = None
+    run_history: list[SessionRunHistoryEntry] = Field(default_factory=list)
+    workflow_active: bool = False
     status_text: str = "/project  /runs  /new  /help"
     draft_text: str = ""
 

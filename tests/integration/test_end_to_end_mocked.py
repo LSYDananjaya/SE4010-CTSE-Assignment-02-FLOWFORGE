@@ -171,3 +171,76 @@ def test_end_to_end_mocked_external_repo_feature_request_uses_attached_component
     assert result.request.repo_path == str(external_repo)
     assert result.plan_result is not None
     assert "accessibility" in result.plan_result.summary.lower() or "ui" in result.plan_result.summary.lower()
+
+
+def test_end_to_end_mocked_recovers_from_invalid_intake_enum(sample_repo) -> None:
+    target = sample_repo / "src" / "components"
+    target.mkdir(parents=True)
+    (target / "FeatureCard.tsx").write_text(
+        "export function FeatureCard() { return null; }\n",
+        encoding="utf-8",
+    )
+    responses = [
+        {
+            "category": "feature",
+            "severity": "unknown",
+            "scope": "fullstack",
+            "goals": ["Review FeatureCard improvements"],
+            "missing_information": [],
+            "summary": "Review FeatureCard improvements.",
+        },
+        {
+            "files_considered": 1,
+            "selected_snippets": [
+                {
+                    "path": "src/auth_service.py",
+                    "language": "python",
+                    "reason": "Fallback fixture file",
+                    "content": "def login(username: str, password: str) -> bool:\n    return bool(username and password)",
+                }
+            ],
+            "constraints": [],
+            "summary": "Context found.",
+        },
+        {
+            "summary": "Plan improvements.",
+            "tasks": [
+                {
+                    "task_id": "T1",
+                    "title": "Review target component",
+                    "description": "Review the attached target and identify improvements.",
+                    "priority": "medium",
+                    "dependencies": [],
+                    "acceptance_criteria": ["Improvements are clearly identified"],
+                    "risks": [],
+                    "owner": "Student 3",
+                }
+            ],
+            "overall_risks": [],
+        },
+        {
+            "approved": True,
+            "findings": [],
+            "rubric_checks": {"feature_quality": True, "observability": True},
+            "summary": "Approved.",
+        },
+    ]
+    llm = __import__("tests.conftest", fromlist=["StubLLM"]).StubLLM(responses)
+    workflow = FlowForgeWorkflow.from_stub_llm(llm)
+
+    result = workflow.run(
+        UserRequest(
+            title="what are the improvements can be done on",
+            description="what are the improvements can be done on @src/components/FeatureCard.tsx",
+            request_type="feature",
+            constraints=[],
+                reporter="qa",
+                repo_path=str(sample_repo),
+                attachments=["src/components/FeatureCard.tsx"],
+            )
+        )
+
+    assert result.workflow_status == "completed"
+    assert result.intake_result is not None
+    assert result.intake_result.severity == "medium"
+    assert result.trace_context["intake"]["fallback_used"] is True
