@@ -48,10 +48,13 @@ class RepoContextFinderTool:
     ) -> RetrievalResult:
         """Find high-signal files using keyword overlap against the query."""
         try:
+            # Resolve once at the boundary so every later path comparison uses an
+            # absolute repository root.
             root = Path(repo_path).resolve(strict=True)
             if not root.is_dir():
                 raise ToolExecutionError(f"Repository path is not a directory: {root}")
 
+            # Query terms include both the original request and workflow constraints.
             keywords = self._tokenize(" ".join([query, *constraints]))
             scored: list[RetrievalCandidate] = []
             seen_paths: set[str] = set()
@@ -128,6 +131,8 @@ class RepoContextFinderTool:
                 )
 
             scored.sort(key=lambda item: (-item.score, item.path))
+
+            # Only the top candidates are returned to keep downstream prompts compact.
             return RetrievalResult(
                 candidates=scored[: self.max_files],
                 files_considered=len(scored),
