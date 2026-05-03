@@ -39,6 +39,7 @@ class QAAgent:
                 "tool_output_summary": f"deterministic_findings={len(deterministic_findings)}",
                 "fallback_used": False,
             }
+            # The prompt combines rubric guidance with the compact plan evidence needed for review.
             prompt = (
                 f"{QA_PROMPT.strip()}\n\n"
                 f"Request category: {state.intake_result.category}\n"
