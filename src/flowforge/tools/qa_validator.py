@@ -71,6 +71,7 @@ class QaValidatorTool:
             if not any(keyword in combined_text for keyword in ("repro", "root cause", "fix", "regression", "validate")):
                 findings.append("Bug plan should cover reproduction, fix validation, or regression protection.")
         elif intake.category == "feature":
+            # Feature requests should show user/API impact and rollout readiness, not only code changes.
             if not any(keyword in combined_text for keyword in ("requirement", "design", "ux", "api", "accessibility", "rollout", "improve")):
                 findings.append("Feature plan should cover requirements, design/UX impact, or rollout considerations.")
         return findings
