@@ -61,6 +61,7 @@ class QAAgent:
                 llm_findings=result.findings,
                 plan=state.plan_result,
             )
+            # A clean findings list means the QA gate can approve the plan.
             if not result.findings:
                 result.approved = True
             state.qa_result = result
