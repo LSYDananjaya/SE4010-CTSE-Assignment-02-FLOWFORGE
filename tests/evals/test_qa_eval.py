@@ -5,6 +5,7 @@ from flowforge.tools.qa_validator import QaValidatorTool
 
 
 def test_qa_eval_flags_missing_acceptance_criteria() -> None:
+    # Eval coverage keeps acceptance criteria as a non-negotiable QA signal.
     tool = QaValidatorTool()
     findings = tool.run(
         intake=IntakeResult(
@@ -50,6 +51,7 @@ def test_qa_eval_flags_missing_acceptance_criteria() -> None:
 
 
 def test_qa_eval_flags_missing_observability_and_local_only_controls() -> None:
+    # Eval coverage pairs observability and local-only controls because both are workflow gates.
     tool = QaValidatorTool()
     findings = tool.run(
         intake=IntakeResult(
