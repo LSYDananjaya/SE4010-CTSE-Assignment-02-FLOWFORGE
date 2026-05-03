@@ -34,6 +34,7 @@ class QaValidatorTool:
                 findings.append(f"Task {task.task_id} is missing acceptance criteria.")
             if not task.risks:
                 findings.append(f"Task {task.task_id} is missing risks.")
+        # Combine plan and context language so keyword checks see the same evidence reviewers see.
         combined_text = " ".join(
             [
                 plan.summary.lower(),
