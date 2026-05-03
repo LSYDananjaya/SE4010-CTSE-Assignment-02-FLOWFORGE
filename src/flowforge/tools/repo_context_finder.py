@@ -65,17 +65,21 @@ class RepoContextFinderTool:
                 if not self._is_within_root(candidate, root):
                     missing_attachments.append(attachment)
                     continue
+
                 relative_path = candidate.relative_to(root)
                 if not candidate.exists() or not candidate.is_file():
                     missing_attachments.append(attachment)
                     continue
+
                 if candidate.stat().st_size > self.max_file_bytes:
                     continue
+
                 try:
                     content = candidate.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     missing_attachments.append(attachment)
                     continue
+
                 normalized_path = str(relative_path).replace("\\", "/")
                 seen_paths.add(normalized_path)
                 scored.append(
@@ -97,18 +101,22 @@ class RepoContextFinderTool:
                 relative_path = str(file_path.relative_to(root)).replace("\\", "/")
                 if relative_path in seen_paths:
                     continue
+
                 try:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     continue
+
                 if not content.strip():
                     continue
+
                 lowered = content.lower()
                 path_lower = relative_path.lower()
                 score = sum(2 for keyword in keywords if keyword in path_lower)
                 score += sum(1 for keyword in keywords if keyword in lowered)
                 if score <= 0:
                     continue
+
                 snippet = content[: self.snippet_chars]
                 scored.append(
                     RetrievalCandidate(
@@ -128,6 +136,7 @@ class RepoContextFinderTool:
         except Exception as exc:  # noqa: BLE001
             if isinstance(exc, ToolExecutionError):
                 raise
+
             raise ToolExecutionError("Repository context finder failed.") from exc
 
     @staticmethod
@@ -144,8 +153,10 @@ class RepoContextFinderTool:
                     results.append(child)
                 elif child.is_dir():
                     results.extend(RepoContextFinderTool._walk(child))
+
         except OSError:
             pass
+
         return results
 
     @staticmethod

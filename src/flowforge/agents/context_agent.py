@@ -29,6 +29,7 @@ class ContextAgent:
                 constraints=state.request.constraints,
                 attachments=state.request.attachments,
             )
+
             state.trace_context["context"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, attachments={len(state.request.attachments)}"
@@ -42,11 +43,13 @@ class ContextAgent:
                 ),
                 "fallback_used": False,
             }
+
             # Missing attachments are treated as a hard stop because downstream
             # planning should not silently ignore files explicitly named by the user.
             if retrieval.missing_attachments:
                 joined = ", ".join(retrieval.missing_attachments)
                 raise FlowForgeError(f"Missing attachment(s): {joined}")
+
             if not retrieval.candidates:
                 state.context_bundle = ContextBundle(
                     files_considered=0,
@@ -56,12 +59,14 @@ class ContextAgent:
                 )
                 state.workflow_status = "context_completed"
                 return state
+
             # Candidates are serialized with path, score, and snippet content so
             # the local SLM can choose evidence without inventing repository facts.
             serialized_candidates = "\n\n".join(
                 f"Path: {candidate.path}\nScore: {candidate.score}\nContent:\n{candidate.content}"
                 for candidate in retrieval.candidates
             )
+
             prompt = (
                 f"{CONTEXT_PROMPT.strip()}\n\n"
                 f"Request category: {state.intake_result.category}\n"
@@ -80,10 +85,12 @@ class ContextAgent:
                 f"selected_snippets={len(result.selected_snippets)}, summary={result.summary[:120]}"
             )
             state.workflow_status = "context_completed"
+
         except FlowForgeError as exc:
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
                 raise
+
             # If the local model cannot produce schema-valid output, keep the
             # workflow usable by passing the highest-scoring retrieved snippets.
             state.context_bundle = ContextBundle(
@@ -106,9 +113,12 @@ class ContextAgent:
             state.trace_context["context"]["fallback_used"] = True
             state.trace_context["context"]["llm_output_summary"] = state.context_bundle.summary[:120]
             state.workflow_status = "context_completed"
+
         except FlowForgeError:
             raise
+
         except Exception as exc:  # noqa: BLE001
             state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
             raise FlowForgeError(f"Context Agent failed: {exc}") from exc
+
         return state
