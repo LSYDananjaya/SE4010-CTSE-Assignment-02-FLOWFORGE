@@ -55,6 +55,7 @@ class QAAgent:
                 schema=QaResult,
                 metadata={"agent": "qa", "run_id": state.run_id},
             )
+            # Preserve deterministic findings while dropping LLM notes that duplicate known plan risks.
             result.findings = self._filter_llm_findings(
                 deterministic_findings=deterministic_findings,
                 llm_findings=result.findings,
