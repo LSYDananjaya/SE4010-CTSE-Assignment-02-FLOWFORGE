@@ -3,10 +3,10 @@
 This report assigns each repository file to one team member for contribution evidence and viva clarity.
 
 ## Team Members
-- Member 1: [Member 1 Name]
-- Member 2: [Member 2 Name]
-- Member 3: [Member 3 Name]
-- Member 4: [Member 4 Name]
+- Member 1: Pawara Sasmina
+- Member 2: Yehara Dananjaya
+- Member 3: Sankalani
+- Member 4: Osanda
 
 ## Allocation Strategy
 - Member 1: Intake flow, request handling, launcher input/session controls, intake tests.
@@ -112,6 +112,6 @@ This report assigns each repository file to one team member for contribution evi
 - `data/traces/.gitkeep`
 
 ## Finalization Checklist
-- Replace member placeholders with real names.
+- Member names are now filled for repository evidence.
 - Ensure each member commits at least once in their owned files.
 - Include this file in the report appendix as contribution proof.

@@ -30,6 +30,13 @@ class JsonTraceWriter:
         status: str,
         latency_ms: float,
         detail: str = "",
+        agent_input_summary: str = "",
+        tool_name: str = "",
+        tool_input_summary: str = "",
+        tool_output_summary: str = "",
+        fallback_used: bool = False,
+        llm_output_summary: str = "",
+        failure_cause: str = "",
     ) -> None:
         """Append a trace event to the run-specific JSONL file."""
         payload: dict[str, Any] = {
@@ -39,6 +46,13 @@ class JsonTraceWriter:
             "status": status,
             "latency_ms": round(latency_ms, 2),
             "detail": detail,
+            "agent_input_summary": agent_input_summary,
+            "tool_name": tool_name,
+            "tool_input_summary": tool_input_summary,
+            "tool_output_summary": tool_output_summary,
+            "fallback_used": fallback_used,
+            "llm_output_summary": llm_output_summary,
+            "failure_cause": failure_cause,
         }
         path = Path(self.trace_path_for(run_id))
         with path.open("a", encoding="utf-8") as handle:

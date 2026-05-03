@@ -4,7 +4,7 @@ from pathlib import Path
 from time import sleep
 
 from flowforge.launcher.app import LauncherApp
-from flowforge.launcher.models import SessionState
+from flowforge.launcher.models import SessionMode, SessionState
 from flowforge.models.requests import UserRequest
 from flowforge.models.state import WorkflowState
 from flowforge.services.persistence import PersistenceService
@@ -155,6 +155,12 @@ def test_session_flow_selects_project_and_runs(sample_repo: Path, tmp_path: Path
     assert len(runs) == 1
     assert runs[0]["workflow_status"] == "completed"
     assert persistence.fetch_recent_projects()[0]["path"] == str(sample_repo)
+    assert app.state.workspace_markers
+    assert any(entry.text == "Workspace ready." for entry in app.state.transcript)
+    assert not any("Workspace set to" in entry.text for entry in app.state.transcript)
+    assert not any("Enter a workspace path." in entry.text for entry in app.state.transcript)
+    assert app.state.current_run is not None
+    assert app.state.current_run.run_id == runs[0]["run_id"]
 
 
 def test_session_flow_shows_live_agent_progress_and_root_cause(sample_repo: Path, tmp_path: Path) -> None:
@@ -183,11 +189,12 @@ def test_session_flow_shows_live_agent_progress_and_root_cause(sample_repo: Path
 
     transcript_texts = [entry.text for entry in app.state.transcript]
     assert "No workspace selected. Use /project to choose one." not in transcript_texts
-    assert any("Intake Agent started" in text for text in transcript_texts)
-    assert any("Context Agent completed" in text for text in transcript_texts)
-    assert any("Planning Agent failed: Task T2 references unknown dependencies: ['T9']" in text for text in transcript_texts)
     assert any("Failure Cause: Task T2 references unknown dependencies: ['T9']" in text for text in transcript_texts)
+    assert any(agent.status == "failed" for agent in app.state.agent_progress if agent.name == "Planning Agent")
+    assert not any("Agent started" in text or "Agent completed" in text for text in transcript_texts)
     assert len(tui.states) >= 3
+    assert app.state.current_run is not None
+    assert app.state.current_run.failure_cause == "Task T2 references unknown dependencies: ['T9']"
 
 
 def test_session_flow_shows_waiting_state_without_excess_idle_rerenders(sample_repo: Path, tmp_path: Path) -> None:
@@ -215,11 +222,144 @@ def test_session_flow_shows_waiting_state_without_excess_idle_rerenders(sample_r
     app.run()
 
     transcript_texts = [entry.text for entry in app.state.transcript]
+    assert any("Running workflow for" in text for text in transcript_texts)
     assert any(
-        "Waiting for Intake Agent..." in entry.text
+        agent.status == "running"
+        for state in tui.states
+        for agent in state.agent_progress
+        if agent.name == "Intake Agent"
+    )
+    assert not any("Agent started" in text or "Agent completed" in text for text in transcript_texts)
+    assert len(tui.states) <= 6
+
+
+def test_session_flow_keeps_agent_progress_rail_visible(sample_repo: Path, tmp_path: Path) -> None:
+    persistence = PersistenceService(base_dir=tmp_path / "data")
+    reporting = ReportingService(base_dir=tmp_path / "data")
+    trace_writer = JsonTraceWriter(base_dir=tmp_path / "data")
+    prompt_io = FakePromptIO(
+        [
+            f"/project {sample_repo}",
+            "review @src/auth_service.py",
+            "/exit",
+        ]
+    )
+    tui = RecordingTui()
+    app = LauncherApp(
+        persistence=persistence,
+        reporting=reporting,
+        trace_writer=trace_writer,
+        workflow=ProgressWorkflow(trace_writer),
+        prompt_io=prompt_io,
+        sample_dir=Path("sample_inputs"),
+        tui=tui,
+    )
+
+    app.run()
+
+    assert any(state.agent_progress for state in tui.states)
+    assert any(
+        agent.status == "completed"
+        for state in tui.states
+        for agent in state.agent_progress
+        if agent.name == "Context Agent"
+    )
+    assert any(
+        agent.status == "failed"
+        for state in tui.states
+        for agent in state.agent_progress
+        if agent.name == "Planning Agent"
+    )
+    assert any(
+        any(agent.status == "completed" for agent in state.agent_progress)
+        for state in tui.states
+    )
+
+
+def test_session_flow_enters_project_selection_when_project_command_submits_without_argument(tmp_path: Path) -> None:
+    persistence = PersistenceService(base_dir=tmp_path / "data")
+    reporting = ReportingService(base_dir=tmp_path / "data")
+    trace_writer = JsonTraceWriter(base_dir=tmp_path / "data")
+    prompt_io = FakePromptIO(["/project", "/exit"])
+    tui = RecordingTui()
+    app = LauncherApp(
+        persistence=persistence,
+        reporting=reporting,
+        trace_writer=trace_writer,
+        workflow=StubWorkflow(),
+        prompt_io=prompt_io,
+        sample_dir=Path("sample_inputs"),
+        tui=tui,
+    )
+
+    app.run()
+
+    assert prompt_io.placeholders[0] == "Describe a bug or feature request..."
+    assert prompt_io.placeholders[1] == "Enter a workspace path..."
+    assert any(
+        state.mode == SessionMode.PROJECT_SELECTION
+        for state in tui.states
+    )
+    assert any(
+        entry.text == "Enter a workspace path."
         for state in tui.states
         for entry in state.transcript
     )
-    assert any("Intake Agent started" in text for text in transcript_texts)
-    assert any("Intake Agent completed" in text for text in transcript_texts)
-    assert len(tui.states) <= 6
+
+
+def test_session_flow_runs_with_finalized_attached_file(sample_repo: Path, tmp_path: Path) -> None:
+    persistence = PersistenceService(base_dir=tmp_path / "data")
+    reporting = ReportingService(base_dir=tmp_path / "data")
+    trace_writer = JsonTraceWriter(base_dir=tmp_path / "data")
+    prompt_io = FakePromptIO(
+        [
+            f"/project {sample_repo}",
+            "what improvements can be done on @src/auth_service.py ",
+            "/exit",
+        ]
+    )
+    app = LauncherApp(
+        persistence=persistence,
+        reporting=reporting,
+        trace_writer=trace_writer,
+        workflow=StubWorkflow(),
+        prompt_io=prompt_io,
+        sample_dir=Path("sample_inputs"),
+    )
+
+    app.run()
+
+    runs = persistence.fetch_runs()
+    assert len(runs) == 1
+    assert runs[0]["workflow_status"] == "completed"
+    assert app.state.attachments == ["src/auth_service.py"]
+
+
+def test_session_flow_collapses_previous_run_when_new_workflow_starts(sample_repo: Path, tmp_path: Path) -> None:
+    persistence = PersistenceService(base_dir=tmp_path / "data")
+    reporting = ReportingService(base_dir=tmp_path / "data")
+    trace_writer = JsonTraceWriter(base_dir=tmp_path / "data")
+    prompt_io = FakePromptIO(
+        [
+            f"/project {sample_repo}",
+            "review @src/auth_service.py",
+            "fix timeout in @src/auth_service.py",
+            "/exit",
+        ]
+    )
+    app = LauncherApp(
+        persistence=persistence,
+        reporting=reporting,
+        trace_writer=trace_writer,
+        workflow=StubWorkflow(),
+        prompt_io=prompt_io,
+        sample_dir=Path("sample_inputs"),
+    )
+
+    app.run()
+
+    assert app.state.current_run is not None
+    assert app.state.current_run.title.startswith("fix timeout")
+    assert app.state.run_history
+    assert app.state.run_history[0].title.startswith("review")
+    assert len([entry for entry in app.state.transcript if entry.text.startswith("Run run-")]) == 1

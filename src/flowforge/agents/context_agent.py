@@ -26,6 +26,19 @@ class ContextAgent:
                 constraints=state.request.constraints,
                 attachments=state.request.attachments,
             )
+            state.trace_context["context"] = {
+                "agent_input_summary": (
+                    f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, attachments={len(state.request.attachments)}"
+                ),
+                "tool_name": "RepoContextFinderTool",
+                "tool_input_summary": (
+                    f"repo_path={state.request.repo_path}, constraints={len(state.request.constraints)}, attachments={state.request.attachments}"
+                ),
+                "tool_output_summary": (
+                    f"files_considered={retrieval.files_considered}, candidates={len(retrieval.candidates)}, missing_attachments={len(retrieval.missing_attachments)}"
+                ),
+                "fallback_used": False,
+            }
             if retrieval.missing_attachments:
                 joined = ", ".join(retrieval.missing_attachments)
                 raise FlowForgeError(f"Missing attachment(s): {joined}")
@@ -56,9 +69,13 @@ class ContextAgent:
                 metadata={"agent": "context", "run_id": state.run_id},
             )
             state.context_bundle = result
+            state.trace_context["context"]["llm_output_summary"] = (
+                f"selected_snippets={len(result.selected_snippets)}, summary={result.summary[:120]}"
+            )
             state.workflow_status = "context_completed"
         except FlowForgeError as exc:
             if "Ollama structured generation failed." not in str(exc):
+                state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
                 raise
             state.context_bundle = ContextBundle(
                 files_considered=retrieval.files_considered,
@@ -77,9 +94,12 @@ class ContextAgent:
                     f"Root cause: {exc}"
                 ),
             )
+            state.trace_context["context"]["fallback_used"] = True
+            state.trace_context["context"]["llm_output_summary"] = state.context_bundle.summary[:120]
             state.workflow_status = "context_completed"
         except FlowForgeError:
             raise
         except Exception as exc:  # noqa: BLE001
+            state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
             raise FlowForgeError(f"Context Agent failed: {exc}") from exc
         return state

@@ -1,0 +1,14 @@
+{
+  "title": "Task status updates silently drift between client and server",
+  "description": "Task status values are inconsistent between the client API layer and shared types, causing silent rendering and update mismatches. Analyze the full-stack bug and produce a plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep output local",
+    "Avoid broad refactors"
+  ],
+  "reporter": "integration-qa",
+  "attachments": [
+    "client/src/api/tasks.ts",
+    "shared/types.ts"
+  ]
+}
