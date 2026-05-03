@@ -307,6 +307,7 @@ def test_qa_agent_falls_back_to_deterministic_result_when_llm_output_is_invalid(
 
 
 def test_qa_agent_filters_plan_risks_out_of_llm_findings() -> None:
+    # The QA agent should not reject a plan for risks the plan already documents.
     request = UserRequest(
         title="Login timeout bug",
         description="Fix the login timeout while keeping the API stable.",
