@@ -10,6 +10,10 @@ FlowForge is a single local-first codebase, but the assignment requires each stu
 
 | Member | Agent Ownership | Tool Ownership | Evaluation Ownership | Core Evidence Files |
 |---|---|---|---|---|
+| Pawara Sasmina | Context Agent | RepoContextFinderTool | Context retrieval evaluation and attachment handling | `src/flowforge/agents/context_agent.py`, `src/flowforge/tools/repo_context_finder.py`, `tests/evals/test_context_eval.py`, `tests/unit/test_context_agent.py` |
+| Yehara Dananjaya | QA Agent | QaValidatorTool | QA validation, tracing, and rubric alignment | `src/flowforge/agents/qa_agent.py`, `src/flowforge/tools/qa_validator.py`, `src/flowforge/services/tracing.py`, `tests/evals/test_qa_eval.py`, `tests/unit/test_qa_agent.py`, `tests/unit/test_tracing.py` |
+| Sankalani | Planning Agent | TaskPlanBuilderTool | Planning normalization and dependency validation | `src/flowforge/agents/planning_agent.py`, `src/flowforge/tools/task_plan_builder.py`, `tests/evals/test_planning_eval.py`, `tests/unit/test_planning_agent.py` |
+| Osanda | Intake Agent | IntakeParserTool | Intake evaluation and malformed input handling | `src/flowforge/agents/intake_agent.py`, `src/flowforge/tools/intake_parser.py`, `tests/evals/test_intake_eval.py`, `tests/unit/test_intake_agent.py` |
 | Pawara Sasmina | Intake Agent | IntakeParserTool | Intake evaluation and launcher validation | `src/flowforge/agents/intake_agent.py`, `src/flowforge/tools/intake_parser.py`, `tests/unit/test_intake_agent.py`, `tests/evals/test_intake_eval.py` |
 | Yehara Dananjaya | Context Agent | RepoContextFinderTool | Context retrieval evaluation and attachment handling | `src/flowforge/agents/context_agent.py`, `src/flowforge/tools/repo_context_finder.py`, `tests/unit/test_context_agent.py`, `tests/evals/test_context_eval.py` |
 | Sankalani | Planning Agent | TaskPlanBuilderTool | Planning normalization and dependency validation | `src/flowforge/agents/planning_agent.py`, `src/flowforge/tools/task_plan_builder.py`, `tests/unit/test_planning_agent.py`, `tests/evals/test_planning_eval.py` |
@@ -55,6 +59,9 @@ FlowForge is a single local-first codebase, but the assignment requires each stu
 
 ## Submission Notes
 
+- Use `docs/BRANCH_AGENT_EVIDENCE.md` in each member branch as branch-specific proof.
+- Keep commit evidence by making at least one commit per member touching their owned files.
+- In the report, include this table and short per-member contribution paragraphs.
 - Each member can demonstrate one owned agent, one owned tool, and one owned evaluation file during the viva.
 - The report should include this table plus the expanded evidence in `docs/MEMBER_EVIDENCE_TEMPLATE.md`.
 - The demo should explicitly show the trace file and explain which agent/tool pair belongs to which team member.
