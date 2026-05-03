@@ -65,6 +65,7 @@ class QAAgent:
             if not result.findings:
                 result.approved = True
             state.qa_result = result
+            # Store only the decision shape so traces stay compact and privacy-friendly.
             state.trace_context["qa"]["llm_output_summary"] = (
                 f"approved={result.approved}, findings={len(result.findings)}, rubric_checks={len(result.rubric_checks)}"
             )
