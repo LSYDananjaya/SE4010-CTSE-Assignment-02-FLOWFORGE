@@ -6,6 +6,26 @@ This note explains the Context Agent contribution on the `pawara` branch.
 
 The Context Agent runs after the Intake Agent has converted the raw request into structured goals, severity, scope, and summary. It uses that structured intake output to build a repository search query.
 
+## Handoff Contract
+
+Input from previous stage:
+
+- `state.request.title`
+- `state.request.description`
+- `state.request.constraints`
+- `state.request.attachments`
+- `state.intake_result.goals`
+- `state.intake_result.category`
+
+Output to next stage:
+
+- `state.context_bundle.files_considered`
+- `state.context_bundle.selected_snippets`
+- `state.context_bundle.constraints`
+- `state.context_bundle.summary`
+
+The Planning Agent should treat this bundle as its evidence source instead of searching the repository again.
+
 ## Main Responsibility
 
 The agent must find the smallest useful set of local repository snippets for the Planning Agent. It should not invent files or rely only on LLM memory. Repository evidence is collected through `RepoContextFinderTool`.
