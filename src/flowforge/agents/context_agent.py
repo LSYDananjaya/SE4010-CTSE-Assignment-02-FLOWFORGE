@@ -20,12 +20,19 @@ class ContextAgent:
             raise FlowForgeError("Context Agent requires intake output.")
 
         try:
+            # Step 1: retrieve deterministic repository candidates before asking
+            # the local model to summarize or select evidence.
+            # The Context Agent only runs after Intake has produced structured goals.
+            # Those goals are included in the retrieval query so file selection stays
+            # grounded in the user's request instead of broad repository scanning.
             retrieval = self.tool.run(
                 repo_path=state.request.repo_path,
                 query=f"{state.request.title}\n{state.request.description}\n{' '.join(state.intake_result.goals)}",
                 constraints=state.request.constraints,
                 attachments=state.request.attachments,
             )
+
+            # Step 2: record trace metadata for AgentOps evidence in the final run.
             state.trace_context["context"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, attachments={len(state.request.attachments)}"
@@ -39,9 +46,13 @@ class ContextAgent:
                 ),
                 "fallback_used": False,
             }
+
+            # Missing attachments are treated as a hard stop because downstream
+            # planning should not silently ignore files explicitly named by the user.
             if retrieval.missing_attachments:
                 joined = ", ".join(retrieval.missing_attachments)
                 raise FlowForgeError(f"Missing attachment(s): {joined}")
+
             if not retrieval.candidates:
                 state.context_bundle = ContextBundle(
                     files_considered=0,
@@ -51,10 +62,15 @@ class ContextAgent:
                 )
                 state.workflow_status = "context_completed"
                 return state
+
+            # Step 3: prepare retrieved snippets for the structured ContextBundle call.
+            # Candidates are serialized with path, score, and snippet content so
+            # the local SLM can choose evidence without inventing repository facts.
             serialized_candidates = "\n\n".join(
                 f"Path: {candidate.path}\nScore: {candidate.score}\nContent:\n{candidate.content}"
                 for candidate in retrieval.candidates
             )
+
             prompt = (
                 f"{CONTEXT_PROMPT.strip()}\n\n"
                 f"Request category: {state.intake_result.category}\n"
@@ -69,14 +85,20 @@ class ContextAgent:
                 metadata={"agent": "context", "run_id": state.run_id},
             )
             state.context_bundle = result
+
+            # Step 4: store a compact LLM output summary for trace inspection.
             state.trace_context["context"]["llm_output_summary"] = (
                 f"selected_snippets={len(result.selected_snippets)}, summary={result.summary[:120]}"
             )
             state.workflow_status = "context_completed"
+
         except FlowForgeError as exc:
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
                 raise
+
+            # If the local model cannot produce schema-valid output, keep the
+            # workflow usable by passing the highest-scoring retrieved snippets.
             state.context_bundle = ContextBundle(
                 files_considered=retrieval.files_considered,
                 selected_snippets=[
@@ -97,9 +119,12 @@ class ContextAgent:
             state.trace_context["context"]["fallback_used"] = True
             state.trace_context["context"]["llm_output_summary"] = state.context_bundle.summary[:120]
             state.workflow_status = "context_completed"
+
         except FlowForgeError:
             raise
+
         except Exception as exc:  # noqa: BLE001
             state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
             raise FlowForgeError(f"Context Agent failed: {exc}") from exc
+
         return state

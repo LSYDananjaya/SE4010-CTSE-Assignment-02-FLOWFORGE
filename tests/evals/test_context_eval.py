@@ -4,6 +4,8 @@ from flowforge.tools.repo_context_finder import RepoContextFinderTool
 
 
 def test_context_eval_limits_selected_content(sample_repo) -> None:
+    # Evaluation goal: keep retrieved evidence bounded so the local SLM receives
+    # concise context instead of an oversized repository dump.
     tool = RepoContextFinderTool(max_files=2, snippet_chars=80)
     result = tool.run(
         repo_path=sample_repo,
@@ -16,6 +18,8 @@ def test_context_eval_limits_selected_content(sample_repo) -> None:
 
 
 def test_context_eval_blocks_attachment_escape_attempt(sample_repo) -> None:
+    # Security goal: user-supplied attachments must not read files outside the
+    # selected repository root.
     result = RepoContextFinderTool().run(
         repo_path=sample_repo,
         query="inspect system secrets",

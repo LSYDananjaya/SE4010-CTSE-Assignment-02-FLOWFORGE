@@ -48,31 +48,41 @@ class RepoContextFinderTool:
     ) -> RetrievalResult:
         """Find high-signal files using keyword overlap against the query."""
         try:
+            # Resolve once at the boundary so every later path comparison uses an
+            # absolute repository root.
             root = Path(repo_path).resolve(strict=True)
             if not root.is_dir():
                 raise ToolExecutionError(f"Repository path is not a directory: {root}")
 
+            # Query terms include both the original request and workflow constraints.
             keywords = self._tokenize(" ".join([query, *constraints]))
             scored: list[RetrievalCandidate] = []
             seen_paths: set[str] = set()
             missing_attachments: list[str] = []
 
+            # Attachments are handled before keyword search so explicitly named
+            # files are preserved even when their contents have low keyword overlap.
             for attachment in attachments or []:
                 candidate = (root / attachment).resolve()
+                # Keep all attachment reads inside the selected repository.
                 if not self._is_within_root(candidate, root):
                     missing_attachments.append(attachment)
                     continue
+
                 relative_path = candidate.relative_to(root)
                 if not candidate.exists() or not candidate.is_file():
                     missing_attachments.append(attachment)
                     continue
+
                 if candidate.stat().st_size > self.max_file_bytes:
                     continue
+
                 try:
                     content = candidate.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     missing_attachments.append(attachment)
                     continue
+
                 normalized_path = str(relative_path).replace("\\", "/")
                 seen_paths.add(normalized_path)
                 scored.append(
@@ -84,6 +94,8 @@ class RepoContextFinderTool:
                     )
                 )
 
+            # After attachments, scan only safe source/documentation file types and
+            # rank candidates with a small deterministic keyword-overlap heuristic.
             for file_path in self._walk(root):
                 if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
                     continue
@@ -92,18 +104,22 @@ class RepoContextFinderTool:
                 relative_path = str(file_path.relative_to(root)).replace("\\", "/")
                 if relative_path in seen_paths:
                     continue
+
                 try:
                     content = file_path.read_text(encoding="utf-8", errors="ignore")
                 except OSError:
                     continue
+
                 if not content.strip():
                     continue
+
                 lowered = content.lower()
                 path_lower = relative_path.lower()
                 score = sum(2 for keyword in keywords if keyword in path_lower)
                 score += sum(1 for keyword in keywords if keyword in lowered)
                 if score <= 0:
                     continue
+
                 snippet = content[: self.snippet_chars]
                 scored.append(
                     RetrievalCandidate(
@@ -115,6 +131,8 @@ class RepoContextFinderTool:
                 )
 
             scored.sort(key=lambda item: (-item.score, item.path))
+
+            # Only the top candidates are returned to keep downstream prompts compact.
             return RetrievalResult(
                 candidates=scored[: self.max_files],
                 files_considered=len(scored),
@@ -123,6 +141,7 @@ class RepoContextFinderTool:
         except Exception as exc:  # noqa: BLE001
             if isinstance(exc, ToolExecutionError):
                 raise
+
             raise ToolExecutionError("Repository context finder failed.") from exc
 
     @staticmethod
@@ -131,14 +150,18 @@ class RepoContextFinderTool:
         results: list[Path] = []
         try:
             for child in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+                # Generated, dependency, and cache folders add noise and slow down
+                # retrieval, so the context search intentionally skips them.
                 if child.name in _SKIP_DIRS or child.name.startswith("."):
                     continue
                 if child.is_file():
                     results.append(child)
                 elif child.is_dir():
                     results.extend(RepoContextFinderTool._walk(child))
+
         except OSError:
             pass
+
         return results
 
     @staticmethod
