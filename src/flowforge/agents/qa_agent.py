@@ -16,10 +16,12 @@ class QAAgent:
 
     def run(self, state: WorkflowState) -> WorkflowState:
         """Run the QA validation stage."""
+        # QA depends on the prior agents so validation can compare intent, context, and plan.
         if state.intake_result is None or state.context_bundle is None or state.plan_result is None:
             raise FlowForgeError("QA Agent requires intake, context, and planning outputs.")
 
         try:
+            # Run deterministic checks first so rule violations cannot be hidden by the LLM.
             deterministic_findings = self.tool.run(
                 intake=state.intake_result,
                 context=state.context_bundle,
@@ -27,6 +29,7 @@ class QAAgent:
                 workflow_constraints=state.request.constraints,
                 observability_enabled=True,
             )
+            # Trace metadata keeps the QA stage auditable without storing the full prompt.
             state.trace_context["qa"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, tasks={len(state.plan_result.tasks)}, deterministic_findings={len(deterministic_findings)}"
@@ -36,6 +39,7 @@ class QAAgent:
                 "tool_output_summary": f"deterministic_findings={len(deterministic_findings)}",
                 "fallback_used": False,
             }
+            # The prompt combines rubric guidance with the compact plan evidence needed for review.
             prompt = (
                 f"{QA_PROMPT.strip()}\n\n"
                 f"Request category: {state.intake_result.category}\n"
@@ -45,27 +49,33 @@ class QAAgent:
                 f"Task count: {len(state.plan_result.tasks)}\n"
                 f"Overall risks: {state.plan_result.overall_risks}"
             )
+            # Structured output lets downstream workflow state consume QA decisions consistently.
             result = self.llm_client.generate_structured(
                 prompt=prompt,
                 schema=QaResult,
                 metadata={"agent": "qa", "run_id": state.run_id},
             )
+            # Preserve deterministic findings while dropping LLM notes that duplicate known plan risks.
             result.findings = self._filter_llm_findings(
                 deterministic_findings=deterministic_findings,
                 llm_findings=result.findings,
                 plan=state.plan_result,
             )
+            # A clean findings list means the QA gate can approve the plan.
             if not result.findings:
                 result.approved = True
             state.qa_result = result
+            # Store only the decision shape so traces stay compact and privacy-friendly.
             state.trace_context["qa"]["llm_output_summary"] = (
                 f"approved={result.approved}, findings={len(result.findings)}, rubric_checks={len(result.rubric_checks)}"
             )
             state.workflow_status = "qa_completed"
         except FlowForgeError as exc:
+            # Only structured-generation failures are recoverable; tool and state errors should fail fast.
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("qa", {})["failure_cause"] = str(exc)
                 raise FlowForgeError("QA Agent failed.") from exc
+            # The fallback keeps local QA deterministic when the model response cannot be parsed.
             state.qa_result = self._build_fallback_result(
                 category=state.intake_result.category,
                 deterministic_findings=deterministic_findings,
@@ -82,6 +92,7 @@ class QAAgent:
 
     @staticmethod
     def _qa_emphasis(category: str) -> str:
+        # Bug and feature plans need different review language in the final QA prompt.
         if category == "bug":
             return "reproduction coverage, fix validation, regression protection, and operational risk"
         return "requirements coverage, UX/API impact, edge cases, rollout readiness, and test coverage"
@@ -89,6 +100,7 @@ class QAAgent:
     @staticmethod
     def _build_fallback_result(*, category: str, deterministic_findings: list[str]) -> QaResult:
         """Return a deterministic QA result when structured generation fails."""
+        # Fallback approval mirrors the deterministic validator outcome.
         approved = not deterministic_findings
         rubric_checks = {
             "local_only": approved,
@@ -119,6 +131,7 @@ class QAAgent:
         plan: PlanResult,
     ) -> list[str]:
         """Remove model findings that simply restate documented risks."""
+        # Normalize documented risks before comparing them with model-generated findings.
         risk_text = {risk.strip().lower() for risk in plan.overall_risks}
         risk_text.update(risk.strip().lower() for task in plan.tasks for risk in task.risks)
         filtered = [

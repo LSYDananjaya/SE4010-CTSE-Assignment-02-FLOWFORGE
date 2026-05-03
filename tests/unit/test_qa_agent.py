@@ -9,6 +9,7 @@ from flowforge.utils.errors import FlowForgeError
 
 
 def test_qa_agent_flags_and_approves_complete_plan() -> None:
+    # This happy path verifies that complete bug evidence reaches the QA prompt.
     request = UserRequest(
         title="Login timeout bug",
         description="Fix timeout and keep it local.",
@@ -81,6 +82,7 @@ def test_qa_agent_flags_and_approves_complete_plan() -> None:
 
 
 def test_qa_agent_uses_feature_specific_rubric_language() -> None:
+    # Feature requests should receive feature-oriented rubric wording in the LLM prompt.
     request = UserRequest(
         title="Category picker improvements",
         description="Suggest improvements for CategoryPicker.",
@@ -152,6 +154,7 @@ def test_qa_agent_uses_feature_specific_rubric_language() -> None:
 
 
 def test_qa_validator_flags_missing_local_only_and_observability_evidence() -> None:
+    # Missing policy evidence should remain visible before the LLM review stage.
     findings = QaValidatorTool().run(
         intake=IntakeResult(
             category="feature",
@@ -197,6 +200,7 @@ def test_qa_validator_flags_missing_local_only_and_observability_evidence() -> N
 
 
 def test_qa_validator_accepts_natural_local_constraint_language() -> None:
+    # Natural language constraints should satisfy local-only checks when intent is clear.
     findings = QaValidatorTool().run(
         intake=IntakeResult(
             category="feature",
@@ -243,6 +247,7 @@ def test_qa_validator_accepts_natural_local_constraint_language() -> None:
 
 
 def test_qa_agent_falls_back_to_deterministic_result_when_llm_output_is_invalid() -> None:
+    # Invalid structured output should fall back to deterministic findings instead of failing the run.
     request = UserRequest(
         title="CSV export feature",
         description="Add CSV export with local-only constraints.",
@@ -302,6 +307,7 @@ def test_qa_agent_falls_back_to_deterministic_result_when_llm_output_is_invalid(
 
 
 def test_qa_agent_filters_plan_risks_out_of_llm_findings() -> None:
+    # The QA agent should not reject a plan for risks the plan already documents.
     request = UserRequest(
         title="Login timeout bug",
         description="Fix the login timeout while keeping the API stable.",
