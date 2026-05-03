@@ -20,6 +20,8 @@ class ContextAgent:
             raise FlowForgeError("Context Agent requires intake output.")
 
         try:
+            # Step 1: retrieve deterministic repository candidates before asking
+            # the local model to summarize or select evidence.
             # The Context Agent only runs after Intake has produced structured goals.
             # Those goals are included in the retrieval query so file selection stays
             # grounded in the user's request instead of broad repository scanning.
@@ -30,6 +32,7 @@ class ContextAgent:
                 attachments=state.request.attachments,
             )
 
+            # Step 2: record trace metadata for AgentOps evidence in the final run.
             state.trace_context["context"] = {
                 "agent_input_summary": (
                     f"category={state.intake_result.category}, goals={len(state.intake_result.goals)}, attachments={len(state.request.attachments)}"
@@ -60,6 +63,7 @@ class ContextAgent:
                 state.workflow_status = "context_completed"
                 return state
 
+            # Step 3: prepare retrieved snippets for the structured ContextBundle call.
             # Candidates are serialized with path, score, and snippet content so
             # the local SLM can choose evidence without inventing repository facts.
             serialized_candidates = "\n\n".join(
@@ -81,6 +85,8 @@ class ContextAgent:
                 metadata={"agent": "context", "run_id": state.run_id},
             )
             state.context_bundle = result
+
+            # Step 4: store a compact LLM output summary for trace inspection.
             state.trace_context["context"]["llm_output_summary"] = (
                 f"selected_snippets={len(result.selected_snippets)}, summary={result.summary[:120]}"
             )
