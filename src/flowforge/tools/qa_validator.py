@@ -28,6 +28,7 @@ class QaValidatorTool:
             findings.append("Plan does not contain any tasks.")
         if not plan.overall_risks:
             findings.append("Plan does not contain any overall risks.")
+        # Each planned task should carry enough evidence to be testable and risk-aware.
         for task in plan.tasks:
             if not task.acceptance_criteria:
                 findings.append(f"Task {task.task_id} is missing acceptance criteria.")
