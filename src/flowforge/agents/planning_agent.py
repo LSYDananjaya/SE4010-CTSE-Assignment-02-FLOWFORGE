@@ -20,7 +20,6 @@ class PlanningAgent:
         self.llm_client = llm_client
         self.tool = tool
 
-
     def run(self, state: WorkflowState) -> WorkflowState:
         """Run planning, normalize the task graph, and record trace context."""
         if state.intake_result is None or state.context_bundle is None:
@@ -33,7 +32,6 @@ class PlanningAgent:
                 for snippet in state.context_bundle.selected_snippets
             )
             
-
             # Trace summaries stay compact because report generation only needs the planning evidence shape.
             state.trace_context["planning"] = {
                 "agent_input_summary": (
