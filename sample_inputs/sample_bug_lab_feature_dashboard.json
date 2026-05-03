@@ -1,0 +1,15 @@
+{
+  "title": "Improve task dashboard review experience",
+  "description": "Product wants a focused improvement plan for the task dashboard experience, especially around cards, filters, and editing flow. Review @client/src/App.tsx, @client/src/components/FeatureCard.tsx, and @client/src/components/FilterBar.tsx and produce an implementation-ready feature plan.",
+  "request_type": "feature",
+  "constraints": [
+    "Keep the output local",
+    "Prefer staged frontend improvements"
+  ],
+  "reporter": "product-team",
+  "attachments": [
+    "client/src/App.tsx",
+    "client/src/components/FeatureCard.tsx",
+    "client/src/components/FilterBar.tsx"
+  ]
+}

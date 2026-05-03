@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from flowforge.launcher.models import SuggestionCandidate
+from flowforge.launcher.models import SuggestionCandidate, SuggestionMatchSet
 
 _SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", ".git", ".mypy_cache", ".pytest_cache", ".tox", "dist", "build", ".eggs"}
 
@@ -10,7 +10,13 @@ _SKIP_DIRS = {".venv", "venv", "node_modules", "__pycache__", ".git", ".mypy_cac
 class FileSuggester:
     """Suggest workspace files for @-mention attachment completion."""
 
-    def suggest(self, *, workspace_root: Path, query: str, limit: int = 12) -> list[SuggestionCandidate]:
+    def suggest(
+        self,
+        *,
+        workspace_root: Path,
+        query: str,
+        limit: int | None = 12,
+    ) -> SuggestionMatchSet:
         """Return fuzzy file suggestions within the selected workspace."""
         lowered = query.lower().strip()
         candidates: list[SuggestionCandidate] = []
@@ -23,7 +29,9 @@ class FileSuggester:
                 continue
             candidates.append(SuggestionCandidate(display=relative, value=relative))
         candidates.sort(key=lambda item: (self._score(item.value.lower(), lowered) * -1, item.value))
-        return candidates[:limit]
+        total_count = len(candidates)
+        visible = candidates if limit is None else candidates[:limit]
+        return SuggestionMatchSet(candidates=visible, total_count=total_count)
 
     @staticmethod
     def _walk(root: Path) -> list[Path]:

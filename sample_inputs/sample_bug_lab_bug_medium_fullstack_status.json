@@ -1,0 +1,14 @@
+{
+  "title": "Fullstack status mapping mismatch is causing inconsistent task rendering",
+  "description": "The client sends in-progress values that do not always match the shared contract, which leads to inconsistent task state in the UI. Review @client/src/api/tasks.ts and @shared/types.ts and propose a medium-severity fullstack fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Preserve the existing route shape",
+    "Keep changes local"
+  ],
+  "reporter": "qa-team",
+  "attachments": [
+    "client/src/api/tasks.ts",
+    "shared/types.ts"
+  ]
+}

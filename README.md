@@ -13,6 +13,8 @@ FlowForge runs four sequential agents through a LangGraph workflow:
 
 The workflow uses typed Pydantic models for shared state, writes run metadata to SQLite, stores reports in Markdown and JSON, and records execution traces as JSONL.
 
+Each agent also emits structured AgentOps metadata so traces include agent input summaries, tool usage summaries, fallback decisions, LLM output summaries, and failure causes.
+
 ## Tech Stack
 
 - Python 3.11+
@@ -30,6 +32,8 @@ The workflow uses typed Pydantic models for shared state, writes run metadata to
 main.py                             CLI entry point
 requirements.txt                    Python dependencies
 sample_inputs/                      Example bug reports and feature requests
+examples/
+  sample_bug_lab/                   Intentional bug-rich TypeScript repo for FlowForge demos and tests
 src/flowforge/
   agents/                           Agent implementations and prompts
   graph/                            LangGraph node wiring and workflow assembly
@@ -122,6 +126,14 @@ Live Ollama integration test:
 $env:FLOWFORGE_LIVE_OLLAMA = "1"
 python -m pytest tests\integration\test_end_to_end_live_ollama.py -q
 ```
+
+Evaluation coverage includes:
+
+- malformed intake payload rejection
+- attachment path traversal blocking
+- dependency cycle rejection
+- QA checks for local-only compliance and observability evidence
+- multi-surface sample project analysis through `examples/sample_bug_lab/`
 
 ## Notes
 

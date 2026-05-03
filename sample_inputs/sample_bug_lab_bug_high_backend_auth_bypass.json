@@ -1,0 +1,14 @@
+{
+  "title": "Protected task endpoints are reachable with any bearer token",
+  "description": "Users can access protected task routes by sending any non-empty bearer token. Review the auth and session handling path and propose a safe local fix plan.",
+  "request_type": "bug",
+  "constraints": [
+    "Keep the solution local",
+    "Preserve the current route structure"
+  ],
+  "reporter": "security-review",
+  "attachments": [
+    "server/src/routes/auth.ts",
+    "server/src/services/sessionService.ts"
+  ]
+}
