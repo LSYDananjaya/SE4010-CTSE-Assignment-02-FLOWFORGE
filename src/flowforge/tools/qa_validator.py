@@ -46,6 +46,7 @@ class QaValidatorTool:
                 *[criterion.lower() for task in plan.tasks for criterion in task.acceptance_criteria],
             ]
         )
+        # Tokenization supports exact local-only checks without relying on brittle substring matches.
         combined_tokens = set(re.findall(r"[a-z0-9-]+", combined_text))
         if not (
             "offline" in combined_tokens
