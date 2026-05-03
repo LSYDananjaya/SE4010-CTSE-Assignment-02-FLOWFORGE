@@ -20,6 +20,9 @@ class ContextAgent:
             raise FlowForgeError("Context Agent requires intake output.")
 
         try:
+            # The Context Agent only runs after Intake has produced structured goals.
+            # Those goals are included in the retrieval query so file selection stays
+            # grounded in the user's request instead of broad repository scanning.
             retrieval = self.tool.run(
                 repo_path=state.request.repo_path,
                 query=f"{state.request.title}\n{state.request.description}\n{' '.join(state.intake_result.goals)}",
@@ -39,6 +42,8 @@ class ContextAgent:
                 ),
                 "fallback_used": False,
             }
+            # Missing attachments are treated as a hard stop because downstream
+            # planning should not silently ignore files explicitly named by the user.
             if retrieval.missing_attachments:
                 joined = ", ".join(retrieval.missing_attachments)
                 raise FlowForgeError(f"Missing attachment(s): {joined}")
@@ -51,6 +56,8 @@ class ContextAgent:
                 )
                 state.workflow_status = "context_completed"
                 return state
+            # Candidates are serialized with path, score, and snippet content so
+            # the local SLM can choose evidence without inventing repository facts.
             serialized_candidates = "\n\n".join(
                 f"Path: {candidate.path}\nScore: {candidate.score}\nContent:\n{candidate.content}"
                 for candidate in retrieval.candidates
@@ -77,6 +84,8 @@ class ContextAgent:
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("context", {})["failure_cause"] = str(exc)
                 raise
+            # If the local model cannot produce schema-valid output, keep the
+            # workflow usable by passing the highest-scoring retrieved snippets.
             state.context_bundle = ContextBundle(
                 files_considered=retrieval.files_considered,
                 selected_snippets=[

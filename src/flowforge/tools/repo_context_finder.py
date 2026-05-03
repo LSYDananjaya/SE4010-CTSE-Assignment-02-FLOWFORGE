@@ -57,8 +57,11 @@ class RepoContextFinderTool:
             seen_paths: set[str] = set()
             missing_attachments: list[str] = []
 
+            # Attachments are handled before keyword search so explicitly named
+            # files are preserved even when their contents have low keyword overlap.
             for attachment in attachments or []:
                 candidate = (root / attachment).resolve()
+                # Keep all attachment reads inside the selected repository.
                 if not self._is_within_root(candidate, root):
                     missing_attachments.append(attachment)
                     continue
@@ -84,6 +87,8 @@ class RepoContextFinderTool:
                     )
                 )
 
+            # After attachments, scan only safe source/documentation file types and
+            # rank candidates with a small deterministic keyword-overlap heuristic.
             for file_path in self._walk(root):
                 if not file_path.is_file() or file_path.suffix.lower() not in ALLOWED_SUFFIXES:
                     continue
@@ -131,6 +136,8 @@ class RepoContextFinderTool:
         results: list[Path] = []
         try:
             for child in sorted(root.iterdir(), key=lambda p: p.name.lower()):
+                # Generated, dependency, and cache folders add noise and slow down
+                # retrieval, so the context search intentionally skips them.
                 if child.name in _SKIP_DIRS or child.name.startswith("."):
                     continue
                 if child.is_file():
