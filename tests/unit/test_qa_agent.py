@@ -200,6 +200,7 @@ def test_qa_validator_flags_missing_local_only_and_observability_evidence() -> N
 
 
 def test_qa_validator_accepts_natural_local_constraint_language() -> None:
+    # Natural language constraints should satisfy local-only checks when intent is clear.
     findings = QaValidatorTool().run(
         intake=IntakeResult(
             category="feature",
