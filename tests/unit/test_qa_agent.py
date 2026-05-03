@@ -9,6 +9,7 @@ from flowforge.utils.errors import FlowForgeError
 
 
 def test_qa_agent_flags_and_approves_complete_plan() -> None:
+    # This happy path verifies that complete bug evidence reaches the QA prompt.
     request = UserRequest(
         title="Login timeout bug",
         description="Fix timeout and keep it local.",
