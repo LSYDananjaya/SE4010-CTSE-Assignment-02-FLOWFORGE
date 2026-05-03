@@ -75,6 +75,7 @@ class QAAgent:
             if "Ollama structured generation failed." not in str(exc):
                 state.trace_context.setdefault("qa", {})["failure_cause"] = str(exc)
                 raise FlowForgeError("QA Agent failed.") from exc
+            # The fallback keeps local QA deterministic when the model response cannot be parsed.
             state.qa_result = self._build_fallback_result(
                 category=state.intake_result.category,
                 deterministic_findings=deterministic_findings,
