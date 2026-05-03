@@ -21,6 +21,7 @@ class QAAgent:
             raise FlowForgeError("QA Agent requires intake, context, and planning outputs.")
 
         try:
+            # Run deterministic checks first so rule violations cannot be hidden by the LLM.
             deterministic_findings = self.tool.run(
                 intake=state.intake_result,
                 context=state.context_bundle,
