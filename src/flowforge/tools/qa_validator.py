@@ -48,6 +48,7 @@ class QaValidatorTool:
         )
         # Tokenization supports exact local-only checks without relying on brittle substring matches.
         combined_tokens = set(re.findall(r"[a-z0-9-]+", combined_text))
+        # Local execution is a project requirement, so the final plan must state it clearly.
         if not (
             "offline" in combined_tokens
             or "ollama" in combined_tokens
