@@ -131,6 +131,7 @@ class QAAgent:
         plan: PlanResult,
     ) -> list[str]:
         """Remove model findings that simply restate documented risks."""
+        # Normalize documented risks before comparing them with model-generated findings.
         risk_text = {risk.strip().lower() for risk in plan.overall_risks}
         risk_text.update(risk.strip().lower() for task in plan.tasks for risk in task.risks)
         filtered = [
